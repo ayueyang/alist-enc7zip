@@ -4,37 +4,43 @@ import path from 'path'
 
 import MixBase64 from './mixBase64'
 import Crcn from './crc6-8'
+import { isWinZipAesEncType } from './winZipAesZip'
 
 const crc6 = new Crcn(6)
 const origPrefix = 'orig_'
+
 function isBadText(str) {
-  // return /[ÃÂ�]/.test(str)
-  return /[ÃÂ�¤§½]/.test(str)
+  return /[脙脗锟铰€陇搂陆]/.test(str)
 }
 
 // check file name, return real name
 export function convertRealName(password, encType, pathText, encSuffix) {
   const fileName = path.basename(pathText)
-  if (fileName.indexOf(origPrefix) === 0) {
-    return fileName.replace(origPrefix, '')
+  if (isOrigName(fileName)) {
+    return getOrigName(fileName)
   }
 
-  // try encode name, fileName don't need decodeURI，encodeUrl func can't encode that like '(' '!'  in nodejs
-  const ext = encSuffix || path.extname(fileName)
+  const ext = isWinZipAesEncType(encType) ? '' : encSuffix || path.extname(fileName)
   const encName = encodeName(password, encType, decodeURIComponent(fileName))
   console.log('@@decodeURI(fileName)', decodeURIComponent(fileName))
+  if (isWinZipAesEncType(encType)) {
+    return encName + '.zip'
+  }
   return encName + ext
 }
 
 // if file name has encrypt, return show name
 export function convertShowName(password, encType, pathText) {
-  const fileName = path.basename(decodeURIComponent(pathText))
-  const ext = path.extname(fileName)
-  const encName = fileName.replace(ext, '')
-  // encName don't need decodeURI
+  const rawFileName = path.basename(decodeURIComponent(pathText))
+  let fileName = rawFileName
+  if (isWinZipAesEncType(encType) && fileName.toLowerCase().endsWith('.zip')) {
+    fileName = fileName.slice(0, -4)
+  }
+  const ext = isWinZipAesEncType(encType) ? '' : path.extname(fileName)
+  const encName = ext ? fileName.replace(ext, '') : fileName
   let showName = decodeName(password, encType, encName)
   if (showName === null) {
-    showName = origPrefix + fileName
+    showName = origPrefix + rawFileName
   }
   return showName
 }
@@ -43,7 +49,6 @@ export function convertRealPath(passwdList, fpath) {
   let foldPath = fpath
   const { passwdInfo, pathInfo } = pathFindPasswd(passwdList, foldPath)
   if (passwdInfo && passwdInfo.encFolder) {
-    // 尝试解密路径，去掉第一个目录
     const foldNames = pathInfo[0].split('/')
     foldNames.shift()
     let encFoldPath = ''
@@ -58,7 +63,38 @@ export function convertRealPath(passwdList, fpath) {
   return foldPath
 }
 
-// 判断是否为匹配的路径encPath:[]
+export function isOrigName(fileName) {
+  return path.basename(fileName).indexOf(origPrefix) === 0
+}
+
+export function getOrigName(fileName) {
+  return path.basename(fileName).replace(origPrefix, '')
+}
+
+export function isEncryptedZipName(password, encType, fileName) {
+  if (!isWinZipAesEncType(encType)) return false
+  if (!String(fileName || '').toLowerCase().endsWith('.zip')) return false
+  const showName = convertShowName(password, encType, fileName)
+  return !!showName && !isOrigName(showName) && convertRealName(password, encType, showName) === path.basename(fileName)
+}
+
+export function isRawZipName(password, encType, fileName) {
+  return (
+    isWinZipAesEncType(encType) &&
+    String(fileName || '').toLowerCase().endsWith('.zip') &&
+    !isEncryptedZipName(password, encType, fileName)
+  )
+}
+
+export function getAListFileTypeByName(fileName = '') {
+  const ext = path.extname(String(fileName).split('?')[0]).toLowerCase()
+  if (['.mp4', '.m4v', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.ts', '.mpg', '.mpeg'].includes(ext)) return 2
+  if (['.mp3', '.m4a', '.aac', '.flac', '.wav', '.ogg'].includes(ext)) return 3
+  if (['.txt', '.md', '.json', '.js', '.ts', '.css', '.html', '.xml', '.log'].includes(ext)) return 4
+  if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(ext)) return 5
+  return 0
+}
+
 export function pathExec(encPath, url) {
   for (const filePath of encPath) {
     const result = pathToRegexp(new RegExp(filePath)).exec(url)
@@ -68,14 +104,13 @@ export function pathExec(encPath, url) {
   }
   return null
 }
-// 不允许加密乱码名字
+
 export function encodeName(password, encType, plainName) {
   const isBad = isBadText(plainName)
   if (isBad) {
     console.log('@isBadText', plainName)
   }
   const passwdOutward = FlowEnc.getPassWdOutward(password, encType)
-  //  randomStr
   const mix64 = new MixBase64(passwdOutward)
   let encodeName = mix64.encode(plainName)
   const crc6Bit = crc6.checksum(Buffer.from(encodeName + passwdOutward))
@@ -88,15 +123,11 @@ export function decodeName(password, encType, encodeName) {
   const crc6Check = encodeName.substring(encodeName.length - 1)
   const passwdOutward = FlowEnc.getPassWdOutward(password, encType)
   const mix64 = new MixBase64(passwdOutward)
-  // start dec
   const subEncName = encodeName.substring(0, encodeName.length - 1)
   const crc6Bit = crc6.checksum(Buffer.from(subEncName + passwdOutward))
-  // console.log(subEncName, MixBase64.getSourceChar(crc6Bit), crc6Check)
-  // TODO, 校验encodeName是属于mix64的字符才可以
   if (MixBase64.getSourceChar(crc6Bit) !== crc6Check) {
     return null
   }
-  // event pass crc6，it maybe decode error, like this name '68758PICxAd_1024-666 - 副本33.png'
   let decodeStr = null
   try {
     decodeStr = mix64.decode(subEncName).toString('utf8')
@@ -110,6 +141,8 @@ export function encodeFromFolder(password, encType, folderPasswd, folderEncType)
   const passwdInfo = folderEncType + '_' + folderPasswd
   return encodeName(password, encType, passwdInfo)
 }
+
+export const encodeFolderName = encodeFromFolder
 
 export function decodeFromFolder(password, encType, encodeName) {
   const arr = encodeName.split('_')
@@ -126,16 +159,14 @@ export function decodeFromFolder(password, encType, encodeName) {
   return { folderEncType, folderPasswd }
 }
 
-// 检查
+export const decodeFolderName = decodeFromFolder
+
 export function pathFindPasswd(passwdList, url) {
   for (const passwdInfo of passwdList) {
     for (const filePath of passwdInfo.encPath) {
       const result = passwdInfo.enable ? pathToRegexp(new RegExp(filePath)).exec(url) : null
       if (result) {
-        // check folder name is can decode
-        // getPassInfo()
         const newPasswdInfo = Object.assign({}, passwdInfo)
-        // url maybe a folder, need decode
         if (!passwdInfo.encFolder) {
           const folders = url.split('/')
           for (const folderName of folders) {
@@ -153,4 +184,3 @@ export function pathFindPasswd(passwdList, url) {
   }
   return {}
 }
-

@@ -1,6 +1,10 @@
 <template>
   <div class="navbar rowBC reset-el-dropdown">
     <div class="rowSC">
+      <!--  返回主页 logo  -->
+      <a class="home-logo-link" href="/" target="_blank" title="返回主页">
+        <img class="home-logo" src="/public/logo.png" alt="主页" />
+      </a>
       <!--  切换sidebar按钮  -->
       <hamburger v-if="settings.showHamburger" :is-active="sidebar.opened" class="hamburger-container" @toggleClick="toggleSideBar" />
       <!--  面包屑导航  -->
@@ -52,19 +56,29 @@ import Hamburger from './Hamburger.vue'
 import { resetState } from '@/hooks/use-permission'
 import { elMessage } from '@/hooks/use-element'
 import { useBasicStore } from '@/store/basic'
-import { useConfigStore } from '@/store/config'
 import { langTitle } from '@/hooks/use-common'
 
 const basicStore = useBasicStore()
-const configStore = useConfigStore()
 const { settings, sidebar, setToggleSideBar, userInfo } = basicStore
 const toggleSideBar = () => {
   setToggleSideBar()
 }
 
-const isDark = computed(() => configStore.theme === 'dark')
+// 通过 DOM class 判断暗色模式，避免循环依赖：config -> router -> Layout -> Navbar
+const isDark = computed(() => document.documentElement.classList.contains('dark'))
 const toggleTheme = () => {
-  configStore.setTheme(isDark.value ? 'lighting-theme' : 'dark')
+  const html = document.documentElement
+  if (html.classList.contains('dark')) {
+    html.className = 'lighting-theme'
+  } else {
+    html.className = 'dark'
+  }
+  // 持久化到 localStorage
+  try {
+    const piniaState = JSON.parse(localStorage.getItem('config') || '{}')
+    piniaState.theme = html.className
+    localStorage.setItem('config', JSON.stringify(piniaState))
+  } catch (e) {}
 }
 //退出登录
 const router = useRouter()
@@ -85,6 +99,26 @@ const loginOut = () => {
   background: var(--nav-bar-background);
   box-shadow: var(--nav-bar-box-shadow);
   z-index: 1;
+}
+
+.home-logo-link {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  text-decoration: none;
+}
+
+.home-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  cursor: pointer;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
 }
 
 //logo

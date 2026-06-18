@@ -43,12 +43,41 @@ class Nedb {
     this.datastore.remove(key)
     return null
   }
+
+  async getEntriesByPrefix(prefix) {
+    const reg = new RegExp(`^${String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+    return await this.datastore.find({ key: { $regex: reg } })
+  }
+
+  async countByPrefix(prefix) {
+    const rows = await this.getEntriesByPrefix(prefix)
+    return rows.length
+  }
+
+  async removeByPrefix(prefix) {
+    const rows = await this.getEntriesByPrefix(prefix)
+    const keys = rows.map((item) => item.key)
+    if (keys.length === 0) return 0
+    await this.datastore.removeMany({ key: { $in: keys } })
+    return keys.length
+  }
+
+  async removeByKeys(keys = []) {
+    const list = keys.filter(Boolean)
+    if (list.length === 0) return 0
+    await this.datastore.removeMany({ key: { $in: list } })
+    return list.length
+  }
+
+  async getAllEntries() {
+    return await this.datastore.find({})
+  }
 }
 
 const nedb = new Nedb(process.cwd() + '/conf/nedb/datafile')
 
 // 定时清除过期的数据
-setInterval(async () => {
+const cleanExpiredTimer = setInterval(async () => {
   const allData = await nedb.datastore.find({})
   for (const data of allData) {
     const { key, expire } = data
@@ -58,5 +87,6 @@ setInterval(async () => {
     }
   }
 }, 30 * 1000)
+if (cleanExpiredTimer.unref) cleanExpiredTimer.unref()
 
 export default nedb

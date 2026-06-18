@@ -37,6 +37,7 @@ logs/
 *.diff
 *.patch
 *.tmp
+cache/
 
 # system ignore 额
 .DS_Store

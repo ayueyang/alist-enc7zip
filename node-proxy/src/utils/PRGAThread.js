@@ -1,6 +1,7 @@
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 const os = require('os')
 const path = require('path')
+const fs = require('fs')
 const dotenv = require('dotenv')
 const { randomUUID } = require('crypto')
 
@@ -12,17 +13,20 @@ const pkgThreadPath = pkgDirPath + '/PRGAThreadCom.js'
 const threadPath = require.resolve('./PRGAThread.js')
 let index = 0
 let PRGAExcuteThread = null
-// 一定要加上这个，不然会产生递归，创建无数线程
-if (isMainThread) {
-  // 避免消耗光资源，加一用于后续的预加载RC4的位置
-  const workerNum = parseInt(os.cpus().length / 2 + 1)
-  const workerList = []
+let workerList = null
+let workerNum = 0
+let workerBasePath = null
+
+function initWorkers() {
+  if (workerList) return
+  workerNum = parseInt(os.cpus().length / 2 + 1)
+  workerList = []
+  workerBasePath = pkgThreadPath
+  if (process.env.RUN_MODE === 'DEV' || !fs.existsSync(pkgThreadPath)) {
+    workerBasePath = threadPath
+  }
   for (let i = workerNum; i--; ) {
-    let basePath = pkgThreadPath
-    if (process.env.RUN_MODE === 'DEV') {
-      basePath = threadPath
-    }
-    const worker = new Worker(basePath, {
+    const worker = new Worker(workerBasePath, {
       workerData: 'work-name-' + i,
     })
     worker._name = 'work-name-' + i
@@ -35,8 +39,12 @@ if (isMainThread) {
       worker.emit(msgId, resData)
     })
   }
+}
 
+// 一定要加上这个，不然会产生递归，创建无数线程
+if (isMainThread) {
   PRGAExcuteThread = function (data) {
+    initWorkers()
     return new Promise((resolve, reject) => {
       const worker = workerList[index++ % workerNum]
       const msgId = randomUUID()

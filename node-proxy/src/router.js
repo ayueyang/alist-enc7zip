@@ -4,11 +4,23 @@ import Router from 'koa-router'
 import bodyparser from 'koa-bodyparser'
 import crypto from 'crypto'
 import fs from 'fs'
-import { alistServer, webdavServer, port, initAlistConfig, version } from './config'
+import { alistServer, webdavServer, port, initAlistConfig, version, writeRuntimeConfig } from './config'
 import { getUserInfo, cacheUserToken, getUserByToken, updateUserInfo } from './dao/userDao'
 import responseHandle from './middleware/responseHandle'
 import { encodeFromFolder, decodeFromFolder } from './utils/commonUtil'
 import { encryptFile, searchFile } from './utils/convertFile'
+import {
+  clearProxyCache,
+  getProxyCacheConfig,
+  getProxyCacheExportData,
+  getProxyCacheStatus,
+  importProxyCacheConfig,
+  saveProxyCacheConfig,
+} from './utils/proxyCacheManager'
+import { getSevenZipAesCbcPreviewRuntimeStats, normalizeSevenZipAesCbcPreviewQuality, normalizeSevenZipAesCbcPreviewDurationSeconds } from './utils/sevenZipAesCbcPreview'
+import { getSevenZipAesCbcProbeRuntimeStats } from './utils/sevenZipAesCbcCache'
+import { getWinZipAesZipProbeRuntimeStats } from './utils/winZipAesZipCache'
+import { isSevenZipAesCbcEncType } from './utils/sevenZipAesCbc'
 
 // bodyparser解析body
 const bodyparserMw = bodyparser({ enableTypes: ['json', 'form', 'text'] })
@@ -102,10 +114,10 @@ router.all('/saveAlistConfig', async (ctx, next) => {
   }
   const _snapshot = JSON.parse(JSON.stringify(alistConfig))
   // 写入到文件中，这里并不是真正的同步，，
-  fs.writeFileSync(process.cwd() + '/conf/config.json', JSON.stringify({ alistServer: _snapshot, webdavServer, port }, '', '\t'))
   alistConfig = initAlistConfig(alistConfig)
   Object.assign(alistServer, alistConfig)
   alistServer._snapshot = _snapshot
+  writeRuntimeConfig()
   ctx.body = { msg: 'save ok' }
 })
 
@@ -123,7 +135,7 @@ router.all('/saveWebdavConfig', async (ctx, next) => {
   }
   config.id = crypto.randomUUID()
   webdavServer.push(config)
-  fs.writeFileSync(process.cwd() + '/conf/config.json', JSON.stringify({ alistServer: alistServer._snapshot, webdavServer, port }, '', '\t'))
+  writeRuntimeConfig()
   ctx.body = { data: webdavServer }
 })
 
@@ -141,7 +153,7 @@ router.all('/updateWebdavConfig', async (ctx, next) => {
       webdavServer[index] = config
     }
   }
-  fs.writeFileSync(process.cwd() + '/conf/config.json', JSON.stringify({ alistServer: alistServer._snapshot, webdavServer, port }, '', '\t'))
+  writeRuntimeConfig()
   ctx.body = { data: webdavServer }
 })
 
@@ -152,8 +164,176 @@ router.all('/delWebdavConfig', async (ctx, next) => {
       webdavServer.splice(index, 1)
     }
   }
-  fs.writeFileSync(process.cwd() + '/conf/config.json', JSON.stringify({ alistServer: alistServer._snapshot, webdavServer, port }, '', '\t'))
+  writeRuntimeConfig()
   ctx.body = { data: webdavServer }
+})
+
+function getProxyCacheRuntimeStats() {
+  const previewStats = getSevenZipAesCbcPreviewRuntimeStats()
+  const sevenZipProbeStats = getSevenZipAesCbcProbeRuntimeStats()
+  const winZipProbeStats = getWinZipAesZipProbeRuntimeStats()
+  return {
+    ...previewStats,
+    sevenZipProbe: sevenZipProbeStats,
+    winZipProbe: winZipProbeStats,
+  }
+}
+
+router.all('/proxy-cache/status', async (ctx) => {
+  const data = await getProxyCacheStatus(getProxyCacheRuntimeStats())
+  ctx.body = { data }
+})
+
+router.all('/proxy-cache/config', async (ctx) => {
+  if (ctx.method.toLocaleUpperCase() === 'GET') {
+    ctx.body = { data: getProxyCacheConfig() }
+    return
+  }
+  const { config, warnings } = saveProxyCacheConfig(ctx.request.body || {})
+  ctx.body = { msg: warnings.length ? warnings.join('; ') : 'save ok', data: config }
+})
+
+router.all('/proxy-cache/clear', async (ctx) => {
+  const type = (ctx.request.body && ctx.request.body.type) || 'all'
+  if (!['preview', 'archiveInfo', 'negativeProbe', 'redirect', 'all'].includes(type)) {
+    ctx.body = { code: 500, msg: 'invalid cache clear type' }
+    return
+  }
+  const data = await clearProxyCache(type)
+  ctx.body = { msg: 'clear ok', data }
+})
+
+router.all('/proxy-cache/export', async (ctx) => {
+  const data = getProxyCacheExportData()
+  ctx.set('content-type', 'application/json; charset=utf-8')
+  ctx.set('content-disposition', 'attachment; filename="proxy-cache-config.json"')
+  ctx.body = { data }
+})
+
+router.all('/proxy-cache/import', async (ctx) => {
+  const payload = ctx.request.body || {}
+  const { config, warnings } = importProxyCacheConfig(payload)
+  ctx.body = { msg: warnings.length ? warnings.join('; ') : 'import ok', data: config }
+})
+
+// 7z AES-CBC 预览简易配置
+function collectSevenZipAesCbcPreviewConfigs() {
+  const configs = []
+  const alistPasswdList = (alistServer && alistServer._snapshot && alistServer._snapshot.passwdList) || alistServer.passwdList || []
+  for (const passwdInfo of alistPasswdList) {
+    if (passwdInfo.enable && isSevenZipAesCbcEncType(passwdInfo.encType)) {
+      configs.push({
+        source: 'alist',
+        describe: passwdInfo.describe || '',
+        encPath: passwdInfo.encPath,
+        preview: {
+          enabled: passwdInfo.sevenZipAesCbcPreview !== false,
+          quality: normalizeSevenZipAesCbcPreviewQuality(passwdInfo.sevenZipAesCbcPreviewQuality),
+          duration: normalizeSevenZipAesCbcPreviewDurationSeconds(passwdInfo.sevenZipAesCbcPreviewDurationSeconds),
+        },
+      })
+    }
+  }
+  if (Array.isArray(webdavServer)) {
+    for (const webdavConfig of webdavServer) {
+      for (const passwdInfo of webdavConfig.passwdList || []) {
+        if (passwdInfo.enable && isSevenZipAesCbcEncType(passwdInfo.encType)) {
+          configs.push({
+            source: 'webdav',
+            name: webdavConfig.name || webdavConfig.describe || '',
+            describe: passwdInfo.describe || '',
+            encPath: passwdInfo.encPath,
+            preview: {
+              enabled: passwdInfo.sevenZipAesCbcPreview !== false,
+              quality: normalizeSevenZipAesCbcPreviewQuality(passwdInfo.sevenZipAesCbcPreviewQuality),
+              duration: normalizeSevenZipAesCbcPreviewDurationSeconds(passwdInfo.sevenZipAesCbcPreviewDurationSeconds),
+            },
+          })
+        }
+      }
+    }
+  }
+  return configs
+}
+
+function applySevenZipAesCbcPreviewConfig(index, preview) {
+  const configs = collectSevenZipAesCbcPreviewConfigs()
+  if (index < 0 || index >= configs.length) return false
+  const target = configs[index]
+  const nextPreview = {
+    enabled: preview.enabled !== false,
+    quality: normalizeSevenZipAesCbcPreviewQuality(preview.quality),
+    duration: normalizeSevenZipAesCbcPreviewDurationSeconds(preview.duration),
+  }
+  if (target.source === 'alist') {
+    let count = 0
+    for (const passwdInfo of alistServer.passwdList) {
+      if (passwdInfo.enable && isSevenZipAesCbcEncType(passwdInfo.encType)) {
+        if (count === index) {
+          passwdInfo.sevenZipAesCbcPreview = nextPreview.enabled
+          passwdInfo.sevenZipAesCbcPreviewQuality = nextPreview.quality
+          passwdInfo.sevenZipAesCbcPreviewDurationSeconds = nextPreview.duration
+          break
+        }
+        count++
+      }
+    }
+    // 同步 snapshot
+    if (alistServer._snapshot && alistServer._snapshot.passwdList) {
+      count = 0
+      for (const passwdInfo of alistServer._snapshot.passwdList) {
+        if (passwdInfo.enable && isSevenZipAesCbcEncType(passwdInfo.encType)) {
+          if (count === index) {
+            passwdInfo.sevenZipAesCbcPreview = nextPreview.enabled
+            passwdInfo.sevenZipAesCbcPreviewQuality = nextPreview.quality
+            passwdInfo.sevenZipAesCbcPreviewDurationSeconds = nextPreview.duration
+            break
+          }
+          count++
+        }
+      }
+    }
+  } else {
+    let globalIndex = 0
+    // 先数 alist 的数量
+    for (const passwdInfo of (alistServer.passwdList || [])) {
+      if (passwdInfo.enable && isSevenZipAesCbcEncType(passwdInfo.encType)) globalIndex++
+    }
+    for (const webdavConfig of webdavServer) {
+      for (const passwdInfo of webdavConfig.passwdList || []) {
+        if (passwdInfo.enable && isSevenZipAesCbcEncType(passwdInfo.encType)) {
+          if (globalIndex === index) {
+            passwdInfo.sevenZipAesCbcPreview = nextPreview.enabled
+            passwdInfo.sevenZipAesCbcPreviewQuality = nextPreview.quality
+            passwdInfo.sevenZipAesCbcPreviewDurationSeconds = nextPreview.duration
+            break
+          }
+          globalIndex++
+        }
+      }
+    }
+  }
+  writeRuntimeConfig()
+  return true
+}
+
+router.all('/proxy-cache/7z-preview-config', async (ctx) => {
+  if (ctx.method.toLocaleUpperCase() === 'GET') {
+    ctx.body = { data: collectSevenZipAesCbcPreviewConfigs() }
+    return
+  }
+  const body = ctx.request.body || {}
+  const { index, preview } = body
+  if (typeof index !== 'number' || !preview) {
+    ctx.body = { code: 500, msg: 'missing index or preview' }
+    return
+  }
+  const ok = applySevenZipAesCbcPreviewConfig(index, preview)
+  if (!ok) {
+    ctx.body = { code: 500, msg: 'invalid index' }
+    return
+  }
+  ctx.body = { msg: 'save ok', data: collectSevenZipAesCbcPreviewConfigs() }
 })
 
 // get folder passwd encode

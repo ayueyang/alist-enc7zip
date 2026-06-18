@@ -2,6 +2,82 @@ import fs from 'fs'
 import { addUserInfo, getUserInfo } from './dao/userDao'
 import nedb from './utils/levelDB'
 
+export const defaultProxyCacheConfig = {
+  version: 1,
+  gifCacheMaxSizeMb: 2048,
+  gifCacheMaxFiles: 10000,
+  gifCacheMaxAgeDays: 30,
+  gifPreviewJobs: 1,
+  gifPreviewQueueLimit: 32,
+  gifTimeoutLowSeconds: 45,
+  gifTimeoutMediumSeconds: 60,
+  gifTimeoutHighSeconds: 90,
+  gifWidth: 180,
+  gifNegativeCacheTtlMinutes: 10,
+  archiveProbeNegativeCacheTtlMinutes: 10,
+  redirectCacheTtlHours: 72,
+  cacheCleanupIntervalMinutes: 30,
+  cleanupOnStartup: true,
+  enableGifDiskCache: true,
+  enablePreviewAsync: true,
+}
+
+const proxyCacheNumberRules = {
+  version: { min: 1, max: 99, integer: true },
+  gifCacheMaxSizeMb: { min: 16, max: 1024 * 1024, integer: true },
+  gifCacheMaxFiles: { min: 1, max: 1000000, integer: true },
+  gifCacheMaxAgeDays: { min: 1, max: 3650, integer: true },
+  gifPreviewJobs: { min: 1, max: 16, integer: true },
+  gifPreviewQueueLimit: { min: 1, max: 10000, integer: true },
+  gifTimeoutLowSeconds: { min: 5, max: 3600, integer: true },
+  gifTimeoutMediumSeconds: { min: 5, max: 3600, integer: true },
+  gifTimeoutHighSeconds: { min: 5, max: 3600, integer: true },
+  gifWidth: { min: 64, max: 1920, integer: true },
+  gifNegativeCacheTtlMinutes: { min: 1, max: 10080, integer: true },
+  archiveProbeNegativeCacheTtlMinutes: { min: 1, max: 10080, integer: true },
+  redirectCacheTtlHours: { min: 1, max: 720, integer: true },
+  cacheCleanupIntervalMinutes: { min: 1, max: 1440, integer: true },
+}
+
+const proxyCacheBooleanKeys = ['cleanupOnStartup', 'enableGifDiskCache', 'enablePreviewAsync']
+
+export function normalizeProxyCacheConfig(input = {}, options = {}) {
+  const warnings = []
+  const errors = []
+  const source = input && typeof input === 'object' ? input : {}
+  const config = { ...defaultProxyCacheConfig }
+  for (const key in proxyCacheNumberRules) {
+    const rule = proxyCacheNumberRules[key]
+    const rawValue = source[key]
+    const value = options.strict ? rawValue : Number(rawValue)
+    const validType = !options.strict || typeof rawValue === 'number'
+    const validInteger = !rule.integer || Number.isInteger(value) || !options.strict
+    if (validType && Number.isFinite(value) && value >= rule.min && value <= rule.max && validInteger) {
+      config[key] = rule.integer ? Math.floor(value) : value
+    } else if (source[key] !== undefined) {
+      const message = `${key} must be ${rule.integer ? 'an integer' : 'a number'} between ${rule.min} and ${rule.max}`
+      if (options.strict) {
+        errors.push(message)
+      } else {
+        warnings.push(`${key} reset to default ${defaultProxyCacheConfig[key]}`)
+      }
+    }
+  }
+  for (const key of proxyCacheBooleanKeys) {
+    if (typeof source[key] === 'boolean') {
+      config[key] = source[key]
+    } else if (source[key] !== undefined) {
+      const message = `${key} must be boolean`
+      if (options.strict) {
+        errors.push(message)
+      } else {
+        warnings.push(`${key} reset to default ${defaultProxyCacheConfig[key]}`)
+      }
+    }
+  }
+  return { config, warnings, errors }
+}
+
 // inti config, fix ncc get local conf
 function getConfPath() {
   return process.cwd() + '/conf'
@@ -33,10 +109,16 @@ const alistServerTemp = {
     {
       password: '123456',
       describe: 'my video', // 加密内容描述
-      encType: 'aesctr', // 算法类型: aesctr（默认）、rc4 
+      encType: 'aesctr', // 算法类型，可选mix，rc4，winzip-aes-ctr，7z-aes-cbc，默认aesctr
       enable: true, // enable encrypt
       encName: false, // encrypt file name
-      encFolder: false,
+      zipInfoCache: true, // cache parsed archive fields for playback
+      zipInfoCacheDays: 30, // archive info cache TTL, days
+      zipAutoCache: false, // auto probe external WinZip AES ZIP in background
+      sevenZipAesCbcAutoCache: false, // auto probe external 7z AES-CBC in background
+      sevenZipAesCbcPreview: true, // show generated 7z AES-CBC GIF preview in AList file list
+      sevenZipAesCbcPreviewQuality: 'high', // low, medium, high
+      sevenZipAesCbcPreviewDurationSeconds: 6, // 3, 6, 9
       encSuffix: '', //
       encPath: ['encrypt_folder/*', 'movie_encrypt/*'], // 路径支持正则表达式，常用的就是 尾巴带*，此目录的所文件都加密
     },
@@ -57,10 +139,18 @@ const webdavServerTemp = [
     passwdList: [
       {
         password: '123456',
-        encType: 'aesctr', // 密码类型，mix：速度更快适合电视盒子之类，rc4: 更安全，速度比mix慢一点，几乎无感知。
+        // 密码类型，mix：速度更快适合电视盒子之类，rc4: 更安全，速度比mix慢一点，几乎无感知。winzip-aes-ctr: 标准WinZip AES压缩包。
+        encType: 'aesctr', // 算法类型，可选mix，rc4，winzip-aes-ctr，7z-aes-cbc，默认aesctr
         describe: 'my video',
         enable: false,
         encName: false, // encrypt file name
+        zipInfoCache: true, // cache parsed archive fields for playback
+        zipInfoCacheDays: 30, // archive info cache TTL, days
+        zipAutoCache: false, // auto probe external WinZip AES ZIP in background
+        sevenZipAesCbcAutoCache: false, // auto probe external 7z AES-CBC in background
+        sevenZipAesCbcPreview: true, // show generated 7z AES-CBC GIF preview in AList file list
+        sevenZipAesCbcPreviewQuality: 'high', // low, medium, high
+        sevenZipAesCbcPreviewDurationSeconds: 6, // 3, 6, 9
         encNameSuffix: '', //
         encPath: ['encrypt_folder/*', '/dav/189cloud/*'], // 子路径
       },
@@ -76,12 +166,55 @@ function getConfFilePath() {
 const exist = fs.existsSync(getConfFilePath())
 if (!exist) {
   // 把默认数据写入到config.json
-  const configData = { alistServer: alistServerTemp, webdavServer: webdavServerTemp, port: 5344 }
+  const configData = { alistServer: alistServerTemp, webdavServer: webdavServerTemp, port: 5344, proxyCache: defaultProxyCacheConfig }
   fs.writeFileSync(getConfFilePath(), JSON.stringify(configData, '', '\t'))
 }
 // 读取配置文件
 const configJson = fs.readFileSync(getConfFilePath(), 'utf8')
 const configData = JSON.parse(configJson)
+const normalizedProxyCache = normalizeProxyCacheConfig(configData.proxyCache)
+configData.proxyCache = normalizedProxyCache.config
+
+function initPasswdConfig(passwdInfo) {
+  if (passwdInfo.zipInfoCache === undefined) {
+    passwdInfo.zipInfoCache = true
+  }
+  if (!Number(passwdInfo.zipInfoCacheDays)) {
+    passwdInfo.zipInfoCacheDays = 30
+  }
+  if (passwdInfo.zipAutoCache === undefined) {
+    passwdInfo.zipAutoCache = false
+  }
+  if (passwdInfo.sevenZipAesCbcAutoCache === undefined) {
+    passwdInfo.sevenZipAesCbcAutoCache = false
+  }
+  if (passwdInfo.sevenZipAesCbcPreview === undefined) {
+    passwdInfo.sevenZipAesCbcPreview = true
+  }
+  if (![3, 6, 9, '3', '6', '9'].includes(passwdInfo.sevenZipAesCbcPreviewDurationSeconds)) {
+    passwdInfo.sevenZipAesCbcPreviewDurationSeconds = 6
+  }
+  if (!['low', 'medium', 'high'].includes(passwdInfo.sevenZipAesCbcPreviewQuality)) {
+    passwdInfo.sevenZipAesCbcPreviewQuality = 'high'
+  }
+}
+
+export function initArchiveCacheConfig(config) {
+  if (config && config.alistServer && config.alistServer.passwdList) {
+    for (const passwdInfo of config.alistServer.passwdList) {
+      initPasswdConfig(passwdInfo)
+    }
+  }
+  if (config && config.webdavServer) {
+    for (const webdavConfig of config.webdavServer) {
+      for (const passwdInfo of webdavConfig.passwdList || []) {
+        initPasswdConfig(passwdInfo)
+      }
+    }
+  }
+}
+
+initArchiveCacheConfig(configData)
 
 // 兼容之前的数据进来，保留2个版
 if (configData.alistServer.flowPassword) {
@@ -97,6 +230,11 @@ if (configData.alistServer.flowPassword) {
   delete alistServer.encPath
   configData.webdavServer = webdavServerTemp
   fs.writeFileSync(process.cwd() + '/conf/config.json', JSON.stringify(configData, '', '\t'))
+  initArchiveCacheConfig(configData)
+}
+
+if (!configData.proxyCache || normalizedProxyCache.warnings.length > 0 || !JSON.parse(configJson).proxyCache) {
+  fs.writeFileSync(getConfFilePath(), JSON.stringify(configData, '', '\t'))
 }
 
 /** 初始化用户的数据库 */
@@ -106,7 +244,7 @@ async function init() {
     let admin = await getUserInfo('admin')
     // 初始化admin账号
     if (admin == null) {
-      admin = { username: 'admin', headImgUrl: '/public/logo.svg', password: '123456', roleId: '[13]' }
+      admin = { username: 'admin', headImgUrl: '/public/logo.svg', password: 'admin123', roleId: '[13]' }
       await addUserInfo(admin)
     }
     console.log('@@init', admin)
@@ -142,5 +280,27 @@ export const version = '0.3.0'
 export const alistServer = configData.alistServer || alistServerTemp
 
 export const webdavServer = configData.webdavServer || webdavServerTemp
+
+export const proxyCache = configData.proxyCache
+
+export function getRuntimeConfigData() {
+  return {
+    alistServer: alistServer._snapshot || alistServer,
+    webdavServer,
+    port,
+    proxyCache,
+  }
+}
+
+export function writeRuntimeConfig() {
+  fs.writeFileSync(getConfFilePath(), JSON.stringify(getRuntimeConfigData(), '', '\t'))
+}
+
+export function updateProxyCacheConfig(nextConfig = {}) {
+  const normalized = normalizeProxyCacheConfig(nextConfig)
+  Object.assign(proxyCache, normalized.config)
+  writeRuntimeConfig()
+  return { config: proxyCache, warnings: normalized.warnings }
+}
 
 console.log('configData ', configData)

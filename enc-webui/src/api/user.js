@@ -100,6 +100,69 @@ export const encryptFileReq = (subForm) => {
   })
 }
 
+export const getProxyCacheStatusReq = () => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/status',
+    method: 'post',
+    reqLoading: false
+  })
+}
+
+export const getProxyCacheConfigReq = () => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/config',
+    method: 'get',
+    reqLoading: false
+  })
+}
+
+export const saveProxyCacheConfigReq = (subForm) => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/config',
+    data: subForm,
+    method: 'post'
+  })
+}
+
+export const clearProxyCacheReq = (type) => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/clear',
+    data: { type },
+    method: 'post'
+  })
+}
+
+export const exportProxyCacheConfigReq = () => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/export',
+    method: 'get'
+  })
+}
+
+export const get7zPreviewConfigReq = () => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/7z-preview-config',
+    method: 'get',
+    reqLoading: false
+  })
+}
+
+export const save7zPreviewConfigReq = (subForm) => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/7z-preview-config',
+    data: subForm,
+    method: 'post'
+  })
+}
+
+export const importProxyCacheConfigReq = (subForm) => {
+  return axiosReq({
+    url: '/enc-api/proxy-cache/import',
+    data: subForm,
+    method: 'post'
+  })
+}
+
 // login
 export const loginReq = (subForm) => {
   return axiosReq({

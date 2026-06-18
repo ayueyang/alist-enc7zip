@@ -80,6 +80,18 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/proxy-cache',
+    component: Layout,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/proxy-cache/index.vue'),
+        name: 'proxy-cache',
+        meta: { title: '代理缓存管理', icon: 'example' }
+      }
+    ]
+  },
+  {
     path: '/encrypt-local',
     component: Layout,
     children: [

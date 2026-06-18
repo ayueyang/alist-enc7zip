@@ -49,6 +49,54 @@
       </el-col>
     </el-row>
 
+    <!-- 7z AES-CBC 预览简易配置 -->
+    <el-card shadow="never" class="mb-16px">
+      <template #header>
+        <div class="section-head">
+          <span>7z AES-CBC 预览简易配置</span>
+        </div>
+      </template>
+      <div v-if="previewConfigs.length === 0" class="preview-empty">未匹配 7z AES-CBC 配置</div>
+      <div v-else class="preview-config-list">
+        <div v-for="(item, idx) in previewConfigs" :key="idx" class="preview-config-item">
+          <div class="preview-config-head">
+            <span class="preview-config-source">{{ item.source === 'alist' ? 'AList' : 'WebDAV' }}</span>
+            <span v-if="item.name" class="preview-config-name">{{ item.name }}</span>
+            <span class="preview-config-desc">{{ item.describe || formatEncPath(item.encPath) }}</span>
+          </div>
+          <div class="preview-config-controls">
+            <div class="preview-control-row">
+              <span class="preview-label">预览</span>
+              <el-switch
+                v-model="item.preview.enabled"
+                active-text="开启"
+                inactive-text="关闭"
+                style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
+                @change="save7zPreview(idx)"
+              />
+            </div>
+            <div class="preview-control-row">
+              <span class="preview-label">画质</span>
+              <el-radio-group v-model="item.preview.quality" size="small" @change="save7zPreview(idx)">
+                <el-radio-button label="low">Low</el-radio-button>
+                <el-radio-button label="medium">Medium</el-radio-button>
+                <el-radio-button label="high">High</el-radio-button>
+              </el-radio-group>
+            </div>
+            <div class="preview-control-row">
+              <span class="preview-label">时长</span>
+              <el-radio-group v-model="item.preview.duration" size="small" @change="save7zPreview(idx)">
+                <el-radio-button :label="3">3s</el-radio-button>
+                <el-radio-button :label="6">6s</el-radio-button>
+                <el-radio-button :label="9">9s</el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="previewConfigs.length > 0" class="preview-hint">当前页实时生效</div>
+    </el-card>
+
     <el-card shadow="never" class="mb-16px">
       <template #header>
         <div class="section-head">
@@ -186,7 +234,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Delete, Download, Refresh, Upload } from '@element-plus/icons-vue'
 import {
@@ -194,7 +242,9 @@ import {
   exportProxyCacheConfigReq,
   getProxyCacheStatusReq,
   importProxyCacheConfigReq,
-  saveProxyCacheConfigReq
+  saveProxyCacheConfigReq,
+  get7zPreviewConfigReq,
+  save7zPreviewConfigReq
 } from '@/api/user'
 
 const form = reactive({})
@@ -204,6 +254,7 @@ const status = reactive({
   negativeProbe: {},
   redirect: {}
 })
+const previewConfigs = ref([])
 
 const archiveInfoTotal = computed(() => {
   return Number(status.archiveInfo.zipInfo || 0) + Number(status.archiveInfo.sevenZipAesCbcInfo || 0)
@@ -247,6 +298,40 @@ async function loadAll() {
   Object.assign(status.negativeProbe, res.data.negativeProbe || {})
   Object.assign(status.redirect, res.data.redirect || {})
   Object.assign(form, res.data.config || {})
+  await load7zPreview()
+}
+
+async function load7zPreview() {
+  try {
+    const res = await get7zPreviewConfigReq()
+    previewConfigs.value = res.data || []
+  } catch (e) {
+    previewConfigs.value = []
+  }
+}
+
+async function save7zPreview(index) {
+  const item = previewConfigs.value[index]
+  if (!item) return
+  try {
+    const res = await save7zPreviewConfigReq({
+      index,
+      preview: {
+        enabled: item.preview.enabled,
+        quality: item.preview.quality,
+        duration: item.preview.duration
+      }
+    })
+    previewConfigs.value = res.data || []
+    ElMessage.success(res.msg || '保存成功')
+  } catch (e) {
+    ElMessage.error('保存失败')
+  }
+}
+
+function formatEncPath(encPath) {
+  if (Array.isArray(encPath)) return encPath.join(', ')
+  return String(encPath || '')
 }
 
 async function saveConfig() {
@@ -361,6 +446,77 @@ onMounted(loadAll)
 
 :deep(.el-input-number) {
   width: 180px;
+}
+
+.preview-empty {
+  color: var(--pc-sub-color);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.preview-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.preview-config-item {
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter, #ebeef5);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter, #f5f7fa);
+}
+
+.preview-config-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.preview-config-source {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--el-color-primary, #409eff);
+  color: #fff;
+}
+
+.preview-config-name {
+  font-size: 13px;
+  color: var(--pc-main-color);
+  font-weight: 500;
+}
+
+.preview-config-desc {
+  font-size: 12px;
+  color: var(--pc-sub-color);
+}
+
+.preview-config-controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.preview-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-label {
+  font-size: 13px;
+  color: var(--pc-title-color);
+  min-width: 28px;
+}
+
+.preview-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--pc-sub-color);
 }
 </style>
 

@@ -3,8 +3,10 @@ import https from 'node:https'
 import crypto, { randomUUID } from 'crypto'
 import levelDB from './levelDB'
 import path from 'path'
-import { decodeName } from './commonUtil'
-import { logger } from '@/common/logger'
+import { convertShowName, decodeName } from './commonUtil'
+import { applyWinZipAesResponseHeaders, isWinZipAesEncType, serializeWinZipAesZipInfo } from './winZipAesZip'
+import { applySevenZipAesCbcResponseHeaders, isSevenZipAesCbcEncType, serializeSevenZipAesCbcInfo } from './sevenZipAesCbc'
+import { buildRedirectCacheData, getRedirectCacheSeconds } from './proxyCacheManager'
 // import { pathExec } from './commonUtil'
 const Agent = http.Agent
 const Agents = https.Agent
@@ -13,10 +15,27 @@ const Agents = https.Agent
 const httpsAgent = new Agents({ keepAlive: true })
 const httpAgent = new Agent({ keepAlive: true })
 
+function prepareRedirectHeaders(request, redirectUrl) {
+  const sourceUrl = new URL(request.urlAddr)
+  const targetUrl = new URL(redirectUrl, sourceUrl)
+  delete request.headers.host
+  delete request.headers.Host
+  if (sourceUrl.host !== targetUrl.host) {
+    delete request.headers.authorization
+    delete request.headers.Authorization
+    delete request.headers.referer
+    delete request.headers.Referer
+  }
+  if (targetUrl.hostname.includes('baidupcs.com')) {
+    request.headers['User-Agent'] = 'pan.baidu.com'
+  }
+  request.urlAddr = targetUrl.toString()
+}
+
 export async function httpProxy(request, response, encryptTransform, decryptTransform) {
   const { method, headers, urlAddr, passwdInfo, url, fileSize } = request
-  const reqId = randomUUID().substring(30)
-  logger.debug('@@request_proxy: ', reqId, method, urlAddr, headers, !!encryptTransform, !!decryptTransform)
+  const reqId = randomUUID()
+  console.log('@@request_info: ', reqId, method, urlAddr, headers, !!encryptTransform, !!decryptTransform)
   // 创建请求
   const options = {
     method,
@@ -28,7 +47,23 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
   return new Promise((resolve, reject) => {
     // 处理重定向的请求，让下载的流量经过代理服务器
     const httpReq = httpRequest.request(urlAddr, options, async (httpResp) => {
-      logger.debug('@@statusCode', reqId, httpResp.statusCode, httpResp.headers)
+      console.log('@@statusCode', reqId, httpResp.statusCode, httpResp.headers)
+      const shouldDecryptResponse = decryptTransform && httpResp.statusCode >= 200 && httpResp.statusCode < 300
+      const redirectLocation = httpResp.headers.location || ''
+      if (
+        request.followRemoteRedirect &&
+        decryptTransform &&
+        httpResp.statusCode >= 300 &&
+        httpResp.statusCode < 400 &&
+        redirectLocation &&
+        (request.remoteRedirectCount || 0) < 5
+      ) {
+        httpResp.resume()
+        request.remoteRedirectCount = (request.remoteRedirectCount || 0) + 1
+        prepareRedirectHeaders(request, redirectLocation)
+        httpProxy(request, response, null, decryptTransform).then(resolve).catch(reject)
+        return
+      }
       response.statusCode = httpResp.statusCode
       if (response.statusCode % 300 < 5) {
         // 可能出现304，redirectUrl = undefined
@@ -36,63 +71,100 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
         // 百度云盘不是https，坑爹，因为天翼云会多次302，所以这里要保持，跳转后的路径保持跟上次一致，经过本服务器代理就可以解密
         if (decryptTransform && passwdInfo.enable) {
           const key = crypto.randomUUID()
-          await levelDB.setExpire(key, { redirectUrl, passwdInfo, fileSize }, 60 * 60 * 72) // 缓存起来，默认3天，足够下载和观看了
+          await levelDB.setExpire(
+            key,
+            buildRedirectCacheData({
+              redirectUrl,
+              fileSize,
+              virtualName: request.zipVirtualName || request.sevenZipAesCbcVirtualName,
+              zipInfo: serializeWinZipAesZipInfo(request.zipInfo),
+              sevenZipAesCbcInfo: serializeSevenZipAesCbcInfo(request.sevenZipAesCbcInfo),
+              sourcePath: url,
+              isWebdav: !!request.isWebdav,
+              webdavConfigId: request.webdavConfig && request.webdavConfig.id,
+            }),
+            getRedirectCacheSeconds()
+          ) // 缓存起来，默认3天，足够下载和观看了
           // 、Referer
           httpResp.headers.location = `/redirect/${key}?decode=1&lastUrl=${encodeURIComponent(url)}`
         }
-        logger.info('302 redirectUrl:', redirectUrl)
+        console.log('302 redirectUrl:', redirectUrl)
       } else if (httpResp.headers['content-range'] && httpResp.statusCode === 200) {
         response.statusCode = 206
       }
-      // 不能用response.writeHead(statusCode, res.header),下面还有代码response.setHeader，不然会报错
+      // 设置headers
       for (const key in httpResp.headers) {
         response.setHeader(key, httpResp.headers[key])
       }
+      if (shouldDecryptResponse) {
+        applyWinZipAesResponseHeaders(response, request)
+        applySevenZipAesCbcResponseHeaders(response, request)
+      }
       // 下载时解密文件名
-      if (method === 'GET' && response.statusCode === 200 && passwdInfo && passwdInfo.encName) {
-        let fileName = decodeURIComponent(path.basename(url))
-        fileName = decodeName(passwdInfo.password, passwdInfo.encType, fileName.replace(path.extname(fileName), ''))
+      if (
+        method === 'GET' &&
+        response.statusCode < 300 &&
+        (!decryptTransform || shouldDecryptResponse) &&
+        passwdInfo &&
+        passwdInfo.enable &&
+        passwdInfo.encName
+      ) {
+        let fileName = request.zipVirtualName || request.sevenZipAesCbcVirtualName || decodeURIComponent(path.basename(url))
+        if (!request.zipVirtualName && !request.sevenZipAesCbcVirtualName) {
+          fileName = isSevenZipAesCbcEncType(passwdInfo.encType)
+            ? fileName
+            : isWinZipAesEncType(passwdInfo.encType)
+              ? convertShowName(passwdInfo.password, passwdInfo.encType, fileName)
+              : decodeName(passwdInfo.password, passwdInfo.encType, fileName.replace(path.extname(fileName), ''))
+        }
         if (fileName) {
           let cd = response.getHeader('content-disposition')
           cd = cd ? cd.replace(/filename\*?=[^=;]*;?/g, '') : ''
-          logger.info('@@proxy解密文件名', reqId, fileName)
+          console.log('解密文件名...', reqId, fileName)
           response.setHeader('content-disposition', cd + `filename*=UTF-8''${encodeURIComponent(fileName)};`)
         }
       }
 
+      if (String(method).toLocaleUpperCase() === 'HEAD') {
+        httpResp.resume()
+        response.end()
+        resolve()
+        return
+      }
+
       httpResp
         .on('end', () => {
-          // 这里好像会好一些，主动完成响应
-          response.end()
           resolve()
         })
         .on('close', () => {
-          logger.info('@远程响应关闭...', method, reqId, urlAddr)
+          console.log('@远程响应关闭...', reqId, urlAddr)
           // response.destroy()
           if (decryptTransform) decryptTransform.destroy()
         })
       // 是否需要解密
-      decryptTransform ? httpResp.pipe(decryptTransform).pipe(response) : httpResp.pipe(response)
+      shouldDecryptResponse ? httpResp.pipe(decryptTransform).pipe(response) : httpResp.pipe(response)
     })
     httpReq.on('error', (err) => {
-      logger.error('@@httpProxy request error ', reqId, err, urlAddr, headers)
+      console.log('@@httpProxy request error ', reqId, err, urlAddr, headers)
+      reject(err)
     })
     // 是否需要加密
-    encryptTransform ? request.pipe(encryptTransform).pipe(httpReq) : request.pipe(httpReq)
+    if (request.followRemoteRedirect && ['GET', 'HEAD'].includes(String(method).toLocaleUpperCase())) {
+      httpReq.end()
+    } else {
+      encryptTransform ? request.pipe(encryptTransform).pipe(httpReq) : request.pipe(httpReq)
+    }
     // 重定向的请求 关闭时 关闭被重定向的请求
     response.on('close', () => {
-      logger.debug('@本地响应关闭...', reqId, url)
+      console.log('@本地响应关闭...', reqId, url)
       httpReq.destroy()
     })
   })
 }
 
 export async function httpClient(request, response) {
-  // urlAddr 包含http
   const { method, headers, urlAddr, reqBody, url } = request
-  // 请求reqBody已被篡改，由调用者调整length或删除，不然影响webdav
-  // delete headers['content-length']
-  logger.debug('@@request_client: ', method, urlAddr, headers, reqBody)
+  console.log('@@request_client: ', method, urlAddr, headers)
   // 创建请求
   const options = {
     method,
@@ -104,16 +176,12 @@ export async function httpClient(request, response) {
   return new Promise((resolve, reject) => {
     // 处理重定向的请求，让下载的流量经过代理服务器
     const httpReq = httpRequest.request(urlAddr, options, async (httpResp) => {
-      logger.debug('@@statusCode', httpResp.statusCode, httpResp.headers)
+      console.log('@@statusCode', httpResp.statusCode, httpResp.headers)
       if (response) {
-        // 外部的ctx.body=OK会导致statusCode=200，外部方法要执行ctx.status = ctx.res.statusCode
         response.statusCode = httpResp.statusCode
         for (const key in httpResp.headers) {
           response.setHeader(key, httpResp.headers[key])
         }
-        // 不能用 response.writeHead(statusCode, res.header)
-        // 会导致直接响应了Content-length: 123, 外部修改的body长度变化后就没法使用，而且外部需要要用ctx.body
-        // 因为ctx.body 会重新计算响应的Content-length
       }
       let result = ''
       httpResp
@@ -122,11 +190,12 @@ export async function httpClient(request, response) {
         })
         .on('end', () => {
           resolve(result)
-          logger.info('httpClient响应结束.', method, result.length, url)
+          console.log('httpResp响应结束...', url)
         })
     })
     httpReq.on('error', (err) => {
-      logger.error('@@httpClient request error ', err)
+      console.log('@@httpClient request error ', err)
+      reject(err)
     })
     // check request type
     if (!reqBody) {
