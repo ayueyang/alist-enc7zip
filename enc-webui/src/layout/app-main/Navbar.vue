@@ -8,8 +8,14 @@
     </div>
     <!--导航标题-->
     <div v-if="settings.showNavbarTitle" class="heardCenterTitle">{{ settings.title }}</div>
-    <!-- 下拉操作菜单 -->
+    <!-- 主题切换 + 下拉操作菜单 -->
     <div v-if="settings.ShowDropDown" class="right-menu rowSC">
+      <el-tooltip :content="isDark ? '切换浅色模式' : '切换暗色模式'" placement="bottom">
+        <el-icon class="theme-toggle" @click="toggleTheme">
+          <Sunny v-if="isDark" />
+          <Moon v-else />
+        </el-icon>
+      </el-tooltip>
       <el-dropdown trigger="click" size="medium">
         <div class="avatar-wrapper">
           <div style="float: left;margin-top: 18px;">
@@ -38,20 +44,27 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick } from 'vue'
-import { CaretBottom } from '@element-plus/icons-vue'
+import { nextTick, computed } from 'vue'
+import { CaretBottom, Sunny, Moon } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import Breadcrumb from './Breadcrumb.vue'
 import Hamburger from './Hamburger.vue'
 import { resetState } from '@/hooks/use-permission'
 import { elMessage } from '@/hooks/use-element'
 import { useBasicStore } from '@/store/basic'
+import { useConfigStore } from '@/store/config'
 import { langTitle } from '@/hooks/use-common'
 
 const basicStore = useBasicStore()
+const configStore = useConfigStore()
 const { settings, sidebar, setToggleSideBar, userInfo } = basicStore
 const toggleSideBar = () => {
   setToggleSideBar()
+}
+
+const isDark = computed(() => configStore.theme === 'dark')
+const toggleTheme = () => {
+  configStore.setTheme(isDark.value ? 'lighting-theme' : 'dark')
 }
 //退出登录
 const router = useRouter()
@@ -112,5 +125,17 @@ const loginOut = () => {
   cursor: pointer;
   margin-right: 40px;
   background-color: var(--nav-bar-right-menu-background);
+}
+
+.theme-toggle {
+  font-size: 20px;
+  cursor: pointer;
+  margin-right: 16px;
+  color: var(--el-text-color-primary, #303133);
+  transition: color 0.2s;
+
+  &:hover {
+    color: var(--el-color-primary);
+  }
 }
 </style>
