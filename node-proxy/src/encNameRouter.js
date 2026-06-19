@@ -251,6 +251,9 @@ encNameRouter.all('/api/fs/list', bodyparserMw, cacheFileInfoList, async (ctx, n
         const sevenZipAesCbcPreviewThumb = await prepareSevenZipAesCbcPreviewThumb(fileInfo, passwdInfo)
         if (sevenZipAesCbcPreviewThumb) {
           fileInfo.thumb = sevenZipAesCbcPreviewThumb
+        } else if (fileInfo.externalSevenZipAesCbc && Number(fileInfo.type) === 5) {
+          // 7z AES-CBC 图片文件：设置 thumb 为虚拟路径的下载 URL
+          fileInfo.thumb = `/d${fileInfo.path}`
         }
         if (!isWinZipAesEncType(passwdInfo.encType) && !isSevenZipAesCbcEncType(passwdInfo.encType)) {
           fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
@@ -265,7 +268,7 @@ encNameRouter.all('/api/fs/list', bodyparserMw, cacheFileInfoList, async (ctx, n
       if (fileInfo.is_dir) {
         return
       }
-      if (fileInfo.type === 5) {
+      if (fileInfo.type === 4) {
         coverNameMap[fileInfo.name.split('.')[0]] = fileInfo.name
       }
     })
@@ -453,6 +456,7 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
   const { path: filePath } = ctx.request.body
   const { webdavConfig } = ctx.req
   const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, filePath)
+  console.log('@@@encNameRouter /api/fs/get', filePath, 'passwdInfo:', !!passwdInfo, 'encName:', passwdInfo?.encName)
   let fileInfo = null
   if (passwdInfo && passwdInfo.encName) {
     ctx.req.encVirtualPath = filePath

@@ -59,6 +59,7 @@ import {
   getSevenZipAesCbcUploadCachePaths,
   getSevenZipAesCbcPasswordHash,
   getSevenZipAesCbcProbeCache,
+  getSevenZipAesCbcCachedFileInfoByVirtualPath,
   isUsableSevenZipAesCbcInfoCache,
   isSevenZipAesCbcFileName,
 } from '@/utils/sevenZipAesCbcCache'
@@ -512,8 +513,33 @@ async function proxyHandle(ctx, next) {
       filePath = filePath.replace('/d/', '/')
     }
     // 尝试获取文件信息，如果未找到相应的文件信息，则对文件名进行加密处理后重新尝试获取文件信息
-    let fileInfo = await getFileInfo(filePath);
+    let fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
+      ? await getSevenZipAesCbcCachedFileInfoByVirtualPath(filePath, passwdInfo.password)
+      : await getFileInfo(filePath);
     const requestedFileName = decodeURIComponent(path.basename(filePath))
+
+    // 7z AES-CBC: 如果通过虚拟路径找到了 .7z 包信息，更新请求路径为实际包路径
+    if (fileInfo && fileInfo.externalSevenZipAesCbc && fileInfo.sevenZipAesCbcPackagePath) {
+      const packagePath = fileInfo.sevenZipAesCbcPackagePath
+      if (filePath !== packagePath) {
+        // 更新请求路径为实际包路径，同时更新 sign 参数为包路径的 sign
+        const packageSign = fileInfo.sign || ''
+        try {
+          const urlObj = new URL(request.urlAddr)
+          urlObj.pathname = urlObj.pathname.replace(filePath, packagePath)
+          if (packageSign) {
+            urlObj.searchParams.set('sign', packageSign)
+          }
+          request.urlAddr = urlObj.toString()
+        } catch (e) {
+          request.urlAddr = request.urlAddr.replace(filePath, packagePath)
+          if (packageSign) {
+            request.urlAddr += (request.urlAddr.indexOf('?') >= 0 ? '&' : '?') + 'sign=' + encodeURIComponent(packageSign)
+          }
+        }
+        filePath = packagePath
+      }
+    }
 
     if (fileInfo === null) {
       if (
@@ -533,6 +559,10 @@ async function proxyHandle(ctx, next) {
       request.isExternalZipCandidate = true
     }
     if (isSevenZipAesCbcEncType(passwdInfo.encType) && isSevenZipAesCbcFileName(requestedFileName)) {
+      request.isExternalSevenZipAesCbcCandidate = true
+    }
+    // 7z AES-CBC: 虚拟路径找到包信息但没有完整解密信息时，标记为候选以触发探测
+    if (isSevenZipAesCbcEncType(passwdInfo.encType) && fileInfo && fileInfo.externalSevenZipAesCbc && !request.isExternalSevenZipAesCbc) {
       request.isExternalSevenZipAesCbcCandidate = true
     }
     logger.info('@@getFileInfo:', filePath, fileInfo, request.urlAddr)
@@ -877,9 +907,11 @@ proxyRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
       }),
       getRedirectCacheSeconds()
     ) // 缓存起来，默认3天，足够下载和观看了
+    // 优先使用虚拟路径作为 lastUrl，避免浏览器从 URL 推断出 .7z 后缀
+    const lastUrlPath = ctx.req.encVirtualPath || path
     result.data.raw_url = `${
       headers.origin || (headers['x-forwarded-proto'] || ctx.protocol) + '://' + ctx.req.selfHost
-    }/redirect/${key}?decode=1&lastUrl=${encodeURIComponent(path)}`
+    }/redirect/${key}?decode=1&lastUrl=${encodeURIComponent(lastUrlPath)}`
     if (previewName) {
       result.data.type = getAListFileTypeByName(previewName)
     }

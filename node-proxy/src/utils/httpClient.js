@@ -48,7 +48,7 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
     // 处理重定向的请求，让下载的流量经过代理服务器
     const httpReq = httpRequest.request(urlAddr, options, async (httpResp) => {
       console.log('@@statusCode', reqId, httpResp.statusCode, httpResp.headers)
-      const shouldDecryptResponse = decryptTransform && httpResp.statusCode >= 200 && httpResp.statusCode < 300
+      const shouldDecryptResponse = decryptTransform && httpResp.statusCode >= 200 && httpResp.statusCode < 300 && !String(httpResp.headers['content-type'] || '').includes('application/json')
       const redirectLocation = httpResp.headers.location || ''
       if (
         request.followRemoteRedirect &&
