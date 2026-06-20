@@ -7,6 +7,7 @@ import { convertShowName, decodeName } from './commonUtil'
 import { applyWinZipAesResponseHeaders, isWinZipAesEncType, serializeWinZipAesZipInfo } from './winZipAesZip'
 import { applySevenZipAesCbcResponseHeaders, isSevenZipAesCbcEncType, serializeSevenZipAesCbcInfo } from './sevenZipAesCbc'
 import { buildRedirectCacheData, getRedirectCacheSeconds } from './proxyCacheManager'
+import { createMp4DisplayMatrixPatchTransform } from './mp4DisplayMatrix'
 // import { pathExec } from './commonUtil'
 const Agent = http.Agent
 const Agents = https.Agent
@@ -14,6 +15,28 @@ const Agents = https.Agent
 // 默认maxFreeSockets=256
 const httpsAgent = new Agents({ keepAlive: true })
 const httpAgent = new Agent({ keepAlive: true })
+
+function pipeResponseWithTransforms(source, transforms, target) {
+  const streams = transforms.filter(Boolean)
+  if (streams.length === 0) {
+    source.pipe(target)
+    return
+  }
+  let current = source
+  for (const stream of streams) {
+    current = current.pipe(stream)
+  }
+  current.pipe(target)
+}
+
+function shouldPatchSevenZipAesCbcMp4DisplayMatrix(request, decryptTransform, shouldDecryptResponse) {
+  if (!decryptTransform || !shouldDecryptResponse) return false
+  if (!request || !request.sevenZipAesCbcInfo) return false
+  const fileName = request.sevenZipAesCbcVirtualName || request.sevenZipAesCbcInfo.innerName || request.url || ''
+  if (!String(fileName).toLowerCase().endsWith('.mp4')) return false
+  const plainRange = request.sevenZipAesCbcPlainRange
+  return !plainRange || Number(plainRange.start || 0) === 0
+}
 
 function prepareRedirectHeaders(request, redirectUrl) {
   const sourceUrl = new URL(request.urlAddr)
@@ -102,7 +125,7 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
       }
       // 下载时解密文件名
       if (
-        method === 'GET' &&
+        (method === 'GET' || method === 'HEAD') &&
         response.statusCode < 300 &&
         (!decryptTransform || shouldDecryptResponse) &&
         passwdInfo &&
@@ -119,7 +142,8 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
         }
         if (fileName) {
           let cd = response.getHeader('content-disposition')
-          cd = cd ? cd.replace(/filename\*?=[^=;]*;?/g, '') : ''
+          // 将 attachment 改为 inline，使浏览器在线播放视频而不是下载
+          cd = cd ? String(cd).replace(/attachment/g, 'inline').replace(/filename\*?=[^=;]*;?/g, '') : 'inline'
           console.log('解密文件名...', reqId, fileName)
           response.setHeader('content-disposition', cd + `filename*=UTF-8''${encodeURIComponent(fileName)};`)
         }
@@ -142,7 +166,15 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
           if (decryptTransform) decryptTransform.destroy()
         })
       // 是否需要解密
-      shouldDecryptResponse ? httpResp.pipe(decryptTransform).pipe(response) : httpResp.pipe(response)
+      if (shouldDecryptResponse) {
+        const transforms = [decryptTransform]
+        if (shouldPatchSevenZipAesCbcMp4DisplayMatrix(request, decryptTransform, shouldDecryptResponse)) {
+          transforms.push(createMp4DisplayMatrixPatchTransform(request.sevenZipAesCbcPlainRange))
+        }
+        pipeResponseWithTransforms(httpResp, transforms, response)
+      } else {
+        httpResp.pipe(response)
+      }
     })
     httpReq.on('error', (err) => {
       console.log('@@httpProxy request error ', reqId, err, urlAddr, headers)

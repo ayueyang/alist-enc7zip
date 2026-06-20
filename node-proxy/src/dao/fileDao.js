@@ -67,6 +67,25 @@ export async function getFileInfo(path) {
   return value
 }
 
+function normalizeFileInfoCachePath(item) {
+  try {
+    return decodeURIComponent(item)
+  } catch (e) {
+    return String(item || '')
+  }
+}
+
+export async function removeFileInfo(paths = []) {
+  const keys = []
+  for (const item of paths) {
+    if (!item) continue
+    const decoded = normalizeFileInfoCachePath(item)
+    keys.push(fileInfoTable + decoded)
+    keys.push(fileInfoTable + encodeURIComponent(decoded))
+  }
+  return await levelDB.removeByKeys([...new Set(keys)])
+}
+
 // 获取文件信息
 export async function getAllFileInfo() {
   const value = await levelDB.getValue({ table: fileInfoTable })

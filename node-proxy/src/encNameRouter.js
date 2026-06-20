@@ -17,7 +17,7 @@ import path from 'path'
 import { httpClient, httpProxy } from './utils/httpClient'
 import FlowEnc from './utils/flowEnc'
 import { logger } from './common/logger'
-import { getFileInfo } from './dao/fileDao'
+import { getFileInfo, removeFileInfo } from './dao/fileDao'
 import WinZipAesZip, { isWinZipAesEncType } from './utils/winZipAesZip'
 import { enqueueExternalWinZipAesZipProbe } from './utils/winZipAesZipCache'
 import SevenZipAesCbc, {
@@ -140,6 +140,11 @@ function joinUrlPath(dir, name) {
   return `${String(dir || '').replace(/\/$/, '')}/${name}`
 }
 
+function appendUrlSign(urlValue, sign) {
+  if (!sign || String(urlValue || '').indexOf('sign=') >= 0) return urlValue
+  return `${urlValue}${String(urlValue).indexOf('?') >= 0 ? '&' : '?'}sign=${encodeURIComponent(sign)}`
+}
+
 const cacheFileInfoList = async (ctx, next) => {
   const { path: foldPath } = ctx.request.body || {}
   if (foldPath) {
@@ -253,7 +258,7 @@ encNameRouter.all('/api/fs/list', bodyparserMw, cacheFileInfoList, async (ctx, n
           fileInfo.thumb = sevenZipAesCbcPreviewThumb
         } else if (fileInfo.externalSevenZipAesCbc && Number(fileInfo.type) === 5) {
           // 7z AES-CBC 图片文件：设置 thumb 为虚拟路径的下载 URL
-          fileInfo.thumb = `/d${fileInfo.path}`
+          fileInfo.thumb = appendUrlSign(`/d${fileInfo.path}`, fileInfo.sign)
         }
         if (!isWinZipAesEncType(passwdInfo.encType) && !isSevenZipAesCbcEncType(passwdInfo.encType)) {
           fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
@@ -369,6 +374,24 @@ encNameRouter.all('/api/fs/remove', bodyparserMw, async (ctx, next) => {
   delete ctx.req.headers['content-length']
   const respBody = await httpClient(ctx.req)
   ctx.body = respBody
+  let parsedBody = null
+  try {
+    parsedBody = typeof respBody === 'string' ? JSON.parse(respBody) : respBody
+  } catch (e) {}
+  if (!parsedBody || parsedBody.code === 200) {
+    const cachePaths = []
+    for (let i = 0; i < names.length; i++) {
+      const showName = names[i]
+      const realName = fileNames[i] || showName
+      cachePaths.push(joinUrlPath(showDir, showName))
+      cachePaths.push(joinUrlPath(dir, showName))
+      cachePaths.push(joinUrlPath(dir, realName))
+      if (showName !== realName) {
+        cachePaths.push(joinUrlPath(showDir, realName))
+      }
+    }
+    await removeFileInfo(cachePaths)
+  }
 })
 
 // 处理目录加密
@@ -467,6 +490,9 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
     fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
       ? await getCachedSevenZipAesCbcFileInfoByPath(filePath, passwdInfo)
       : await getCachedFileInfoByPath(filePath)
+    if (!fileInfo && isSevenZipAesCbcEncType(passwdInfo.encType) && !isSevenZipAesCbcFileName(fileName)) {
+      fileInfo = await getCachedSevenZipAesCbcFileInfoByPath(`${filePath}.7z`, passwdInfo)
+    }
     if (fileInfo && fileInfo.is_dir) {
       await next()
       return
@@ -501,6 +527,12 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
   }
   await next()
   if (passwdInfo && passwdInfo.encName) {
+    if (!ctx.body || !ctx.body.data) {
+      const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
+      const realName = getRequestRealName(passwdInfo, path.basename(filePath), fileInfo)
+      await removeFileInfo([filePath, joinUrlPath(folderRealPath, realName)])
+      return
+    }
     // return showName
     const showName = getShowName(passwdInfo, ctx.body.data.name, fileInfo)
     ctx.body.data.name = showName
@@ -578,14 +610,29 @@ const handleDownload = async (ctx, next) => {
     delete ctx.req.headers['content-length']
     // Check whether the file name refers to an encrypted file or a directory
     const fileName = path.basename(filePath)
-    const fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
+    let fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
       ? await getCachedSevenZipAesCbcFileInfoByPath(filePath, passwdInfo)
       : await getCachedFileInfoByPath(filePath)
+    if (!fileInfo && isSevenZipAesCbcEncType(passwdInfo.encType) && !isSevenZipAesCbcFileName(fileName)) {
+      fileInfo = await getCachedSevenZipAesCbcFileInfoByPath(`${filePath}.7z`, passwdInfo)
+    }
+    if (fileInfo && fileInfo.externalSevenZipAesCbc) {
+      request.isExternalSevenZipAesCbc = true
+      request.sevenZipAesCbcVirtualName =
+        (fileInfo.sevenZipAesCbcInfo && fileInfo.sevenZipAesCbcInfo.innerName) ||
+        fileInfo.sevenZipAesCbcVirtualName ||
+        fileName
+      request.cachedExternalSevenZipAesCbcInfo = fileInfo.sevenZipAesCbcInfo
+    }
     const realName = getRequestRealName(passwdInfo, fileName, fileInfo)
     const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
     // Replace the real-name before downloading
     ctx.req.url = ctx.req.url.replace(path.dirname(filePath), folderRealPath).replace(regexPath, `/${realName}$2`)
     ctx.req.urlAddr = ctx.req.urlAddr.replace(path.dirname(filePath), folderRealPath).replace(regexPath, `/${realName}$2`)
+    if (fileInfo && fileInfo.sign) {
+      ctx.req.url = appendUrlSign(ctx.req.url, fileInfo.sign)
+      ctx.req.urlAddr = appendUrlSign(ctx.req.urlAddr, fileInfo.sign)
+    }
     logger.debug('@@download-fileName', ctx.req.url, fileName, realName)
     await next()
     return

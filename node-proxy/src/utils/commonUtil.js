@@ -88,10 +88,10 @@ export function isRawZipName(password, encType, fileName) {
 
 export function getAListFileTypeByName(fileName = '') {
   const ext = path.extname(String(fileName).split('?')[0]).toLowerCase()
-  if (['.mp4', '.m4v', '.webm', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.ts', '.mpg', '.mpeg'].includes(ext)) return 2
-  if (['.mp3', '.m4a', '.aac', '.flac', '.wav', '.ogg'].includes(ext)) return 3
-  if (['.txt', '.md', '.json', '.js', '.ts', '.css', '.html', '.xml', '.log'].includes(ext)) return 4
-  if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(ext)) return 5
+  if (['.mp4', '.mkv', '.avi', '.mov', '.rmvb', '.webm', '.flv', '.m3u8'].includes(ext)) return 2
+  if (['.mp3', '.flac', '.ogg', '.m4a', '.wav', '.opus', '.wma'].includes(ext)) return 3
+  if (['.txt', '.htm', '.html', '.xml', '.java', '.properties', '.sql', '.js', '.md', '.json', '.conf', '.ini', '.vue', '.php', '.py', '.bat', '.gitignore', '.yml', '.go', '.sh', '.c', '.cpp', '.h', '.hpp', '.tsx', '.vtt', '.srt', '.ass', '.rs', '.lrc'].includes(ext)) return 4
+  if (['.jpg', '.tiff', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.ico', '.swf', '.webp'].includes(ext)) return 5
   return 0
 }
 

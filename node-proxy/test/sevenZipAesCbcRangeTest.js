@@ -21,6 +21,7 @@ import SevenZipAesCbc, {
 import { fileInfoTable, getFileInfo, getZipInfoCacheExpireSeconds } from '../src/dao/fileDao'
 import { httpProxy } from '../src/utils/httpClient'
 import levelDB from '../src/utils/levelDB'
+import { patchMp4DisplayMatrix } from '../src/utils/mp4DisplayMatrix'
 import {
   cacheExternalSevenZipAesCbcInfo,
   cacheGeneratedSevenZipAesCbcInfo,
@@ -484,6 +485,44 @@ function listenKoa(app) {
       resolve({ server, url: `http://127.0.0.1:${address.port}` })
     })
   })
+}
+
+function testPatchMp4DisplayMatrix() {
+  const identity = Buffer.from([
+    0x00, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x40, 0x00, 0x00, 0x00,
+  ])
+  const rotated = Buffer.from([
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0xff, 0xff, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x40, 0x00, 0x00, 0x00,
+  ])
+  const tkhd = Buffer.concat([
+    Buffer.from([0, 0, 0, 92]),
+    Buffer.from('tkhd'),
+    Buffer.alloc(40),
+    rotated,
+    Buffer.alloc(8),
+  ])
+  const trak = Buffer.concat([Buffer.from([0, 0, 0, tkhd.length + 8]), Buffer.from('trak'), tkhd])
+  const moov = Buffer.concat([Buffer.from([0, 0, 0, trak.length + 8]), Buffer.from('moov'), trak])
+  const beforeLength = moov.length
+  assert.strictEqual(patchMp4DisplayMatrix(moov), 1)
+  assert.strictEqual(moov.length, beforeLength)
+  assert.ok(moov.includes(identity))
 }
 
 async function assertArchive(archivePath, plain) {
@@ -1493,6 +1532,7 @@ function assertFolderPasswordRouting() {
 }
 
 async function main() {
+  testPatchMp4DisplayMatrix()
   assert.strictEqual(SEVEN_ZIP_AES_CBC_ENC_TYPE, '7z-aes-cbc')
   assert.strictEqual(SEVEN_ZIP_AES_CBC_DISPLAY_NAME, '7z AES-CBC')
   assert.ok(isSevenZipAesCbcEncType(SEVEN_ZIP_AES_CBC_ENC_TYPE))
