@@ -33,6 +33,7 @@
               <!-- <el-radio label="mix" border>MIX</el-radio> -->
               <el-radio label="rc4" border>RC4</el-radio>
               <el-radio label="aesctr" border>AES-CTR(新)</el-radio>
+              <el-radio label="chacha20" border>CHACHA20</el-radio>
               <el-radio label="winzip-aes-ctr" border>WinZip-AES-CTR</el-radio>
               <el-radio label="7z-aes-cbc" border>7z AES-CBC</el-radio>
             </el-radio-group>
