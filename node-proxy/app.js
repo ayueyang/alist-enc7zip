@@ -1062,8 +1062,16 @@ proxyRouter.all(new RegExp(alistServer.path), async (ctx, next) => {
 app.use(proxyRouter.routes()).use(proxyRouter.allowedMethods())
 
 // 配置创建好了，就启动 else {
-const server = http.createServer(app.callback())
+const koaHandler = app.callback()
+const server = http.createServer(koaHandler)
 server.maxConnections = 1000
+
+// 捕获带Expect:100-continue的PUT上传请求直接透传，本机不处理
+server.on('checkContinue', (req, res) => {
+  // 全部交给后端的webdav服务处理，修复群晖webdav的问题
+  koaHandler(req, res)
+})
+
 server.listen(port, () => logger.info('服务启动成功: ' + port))
 setInterval(() => {
   logger.debug('server_connections', server._connections, Date.now())

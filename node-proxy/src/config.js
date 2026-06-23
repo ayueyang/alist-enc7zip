@@ -176,6 +176,9 @@ const normalizedProxyCache = normalizeProxyCacheConfig(configData.proxyCache)
 configData.proxyCache = normalizedProxyCache.config
 
 function initPasswdConfig(passwdInfo) {
+  if (passwdInfo.encFolder === undefined) {
+    passwdInfo.encFolder = false
+  }
   if (passwdInfo.zipInfoCache === undefined) {
     passwdInfo.zipInfoCache = true
   }
