@@ -46,3 +46,11 @@ Thumbs.db
 # agent build ignore
 /agent/
 
+# local test/debug scripts (not for version control)
+node-proxy/check_db.js
+node-proxy/check_probe_detail.js
+node-proxy/clear_cache.js
+node-proxy/test_api.js
+node-proxy/test_api2.js
+node-proxy/test_redirect.js
+
