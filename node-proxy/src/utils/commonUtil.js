@@ -49,20 +49,36 @@ export function convertRealPath(passwdList, fpath) {
   let foldPath = fpath
   const { passwdInfo, pathInfo } = pathFindPasswd(passwdList, foldPath)
   if (passwdInfo && passwdInfo.encFolder) {
-    const foldNames = pathInfo[0].split('/').filter(n => n)
+    const matchedPart = pathInfo[0]
+    const matchIndex = foldPath.indexOf(matchedPart)
+    if (matchIndex === -1) return foldPath
+
+    const prefix = foldPath.substring(0, matchIndex)
+    const remaining = foldPath.substring(matchIndex + matchedPart.length)
+
+    const matchedNames = matchedPart.split('/').filter(n => n)
+    const remainingNames = remaining.split('/').filter(n => n)
     // encFolderShift: 前N层文件夹保持明文，默认1（兼容原作者行为）
     const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
-    for (let i = 0; i < shiftCount && foldNames.length > 0; i++) {
-      foldNames.shift()
+
+    const parts = []
+    // matchedPart 内：前 shiftCount 层明文，其余加密
+    for (let i = 0; i < matchedNames.length; i++) {
+      if (i < shiftCount) {
+        parts.push(matchedNames[i])
+      } else {
+        parts.push(convertRealName(passwdInfo.password, passwdInfo.encType, matchedNames[i]))
+      }
     }
-    let encFoldPath = ''
-    let realFoldPath = ''
-    for (let name of foldNames) {
-      const realFoldName = convertRealName(passwdInfo.password, passwdInfo.encType, name)
-      encFoldPath += '/' + name
-      realFoldPath += '/' + realFoldName
+    // remaining（encPath 之外的子路径）：全部加密
+    for (const name of remainingNames) {
+      parts.push(convertRealName(passwdInfo.password, passwdInfo.encType, name))
     }
-    foldPath = foldPath.replace(encFoldPath, realFoldPath)
+
+    if (parts.length > 0) {
+      const sep = prefix.endsWith('/') ? '' : '/'
+      foldPath = prefix + sep + parts.join('/')
+    }
   }
   return foldPath
 }
