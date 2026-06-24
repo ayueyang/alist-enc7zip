@@ -60,14 +60,46 @@ if (passwdInfo.encFolderShift === undefined) {
 - 默认配置和新增配置均加 `encFolder: false` 和 `encFolderShift: 1`
 - `encFolder` 开启时显示"明文层数"输入框，含详细说明
 
+两个页面的"明文层数"说明文字一致：
+
 ```html
 <el-form-item v-if="item.encFolder" label="明文层数">
   <el-input-number v-model="item.encFolderShift" :min="1" :max="10" size="small" />
-  <span style="font-size: 12px; color: gray; margin-left: 10px">
-    encPath 前几层文件夹保持明文，默认1（仅第一层明文）
-  </span>
+  <div style="font-size: 12px; color: gray; margin-top: 4px; line-height: 1.6">
+    <div>填 1（默认）：encPath 第1层明文，第2层起全部加密。如 encPath=A/B/C/* → A明文，B+C密文。</div>
+    <div>填 2：前2层明文，第3层起加密。如 encPath=A/B/C/* → A+B明文，C密文。</div>
+    <div>填 N：前N层明文，第N+1层起加密。超过路径层数则全部明文（等于没加密）。</div>
+  </div>
 </el-form-item>
 ```
+
+### 5. `node-proxy/src/encNameRouter.js` — 列表浏览/重命名逻辑
+
+原代码在列表浏览时，只要 `encFolder=true` 就对所有匹配到的文件夹名调用 `convertShowName`（解密显示）。明文层的文件夹名解密失败后会变成 `orig_原名`，导致显示异常。
+
+三处修复，统一用 `pathInfo[0]` 的层数与 `encFolderShift` 比较，明文层跳过解密/加密：
+
+**`/api/fs/list`（列表浏览）**：
+
+```js
+// 改动前
+if (passwdInfo && passwdInfo.encFolder) {
+  fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
+}
+
+// 改动后
+if (passwdInfo && passwdInfo.encFolder) {
+  const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+  const foldNames = pathInfo[0].split('/').filter(n => n)
+  if (foldNames.length > shiftCount) {   // 当前文件夹深度 > 明文层数才解密
+    fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
+  }
+}
+```
+
+**`/api/fs/dirs`（目录列表）**：同理，子项深度 = `foldNames.length + 1`，当 `foldNames.length >= shiftCount` 时子项在密文层，需要解密。
+
+**`/api/fs/rename`（重命名）**：同理，`foldNames.length > shiftCount` 时才加密新文件夹名。
 
 ## 兼容性
 

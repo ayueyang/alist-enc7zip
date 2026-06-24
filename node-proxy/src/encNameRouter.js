@@ -242,9 +242,13 @@ encNameRouter.all('/api/fs/list', bodyparserMw, cacheFileInfoList, async (ctx, n
     for (let i = 0; i < content.length; i++) {
       const fileInfo = content[i]
       if (fileInfo.is_dir) {
-        const { passwdInfo } = pathFindPasswd(passwdList, decodeURI(fileInfo.path))
+        const { passwdInfo, pathInfo } = pathFindPasswd(passwdList, decodeURI(fileInfo.path))
         if (passwdInfo && passwdInfo.encFolder) {
-          fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
+          const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+          const foldNames = pathInfo[0].split('/').filter(n => n)
+          if (foldNames.length > shiftCount) {
+            fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
+          }
         }
         continue
       }
@@ -405,10 +409,14 @@ encNameRouter.all('/api/fs/dirs', bodyparserMw, async (ctx, next) => {
   const respBody = await httpClient(ctx.req)
   const result = JSON.parse(respBody)
   ctx.body = result
-  const { passwdInfo } = pathFindPasswd(ctx.req.webdavConfig.passwdList, foldPath + '/')
+  const { passwdInfo, pathInfo } = pathFindPasswd(ctx.req.webdavConfig.passwdList, foldPath + '/')
   if (passwdInfo && passwdInfo.encFolder && result.data && result.data.length > 0) {
-    for (const nameObj of result.data) {
-      nameObj.name = convertShowName(passwdInfo.password, passwdInfo.encType, nameObj.name)
+    const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+    const foldNames = pathInfo[0].split('/').filter(n => n)
+    if (foldNames.length >= shiftCount) {
+      for (const nameObj of result.data) {
+        nameObj.name = convertShowName(passwdInfo.password, passwdInfo.encType, nameObj.name)
+      }
     }
   }
   logger.info('@@fs/dirs', realfoldPath)
@@ -549,7 +557,7 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
 encNameRouter.all('/api/fs/rename', bodyparserMw, async (ctx, next) => {
   const { path: filePath, name } = ctx.request.body
   const { webdavConfig } = ctx.req
-  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, filePath)
+  const { passwdInfo, pathInfo } = pathFindPasswd(webdavConfig.passwdList, filePath)
   const reqBody = { path: filePath, name }
   ctx.req.reqBody = reqBody
   // reset content-length length
@@ -566,7 +574,11 @@ encNameRouter.all('/api/fs/rename', bodyparserMw, async (ctx, next) => {
     fileInfo = await getCachedFileInfoByPath(realFilePath)
   }
   if (passwdInfo && passwdInfo.encFolder && fileInfo && fileInfo.is_dir) {
-    reqBody.name = convertRealName(passwdInfo.password, passwdInfo.encType, name)
+    const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+    const foldNames = pathInfo[0].split('/').filter(n => n)
+    if (foldNames.length > shiftCount) {
+      reqBody.name = convertRealName(passwdInfo.password, passwdInfo.encType, name)
+    }
   }
   if (passwdInfo && passwdInfo.encName && fileInfo && !fileInfo.is_dir && isSevenZipAesCbcEncType(passwdInfo.encType)) {
     const realName = getSevenZipAesCbcCachedPackageName(fileInfo, path.basename(filePath))
