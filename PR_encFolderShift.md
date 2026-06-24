@@ -52,6 +52,13 @@ if (passwdInfo.encFolderShift === undefined) {
 
 - 默认配置和新增配置均加 `encFolderShift: 1`
 - `encFolder` 开启时显示"明文层数"输入框（`el-input-number`，min=1 max=10）
+- 输入框下方有详细说明：填1/2/N 分别对应什么效果
+
+### 4. `enc-webui/src/views/setting-webdav/index.vue` — UI
+
+- 新增 `encFolder` 单选按钮（原 webdav 页面无此选项）
+- 默认配置和新增配置均加 `encFolder: false` 和 `encFolderShift: 1`
+- `encFolder` 开启时显示"明文层数"输入框，含详细说明
 
 ```html
 <el-form-item v-if="item.encFolder" label="明文层数">
