@@ -108,6 +108,24 @@
             <el-form-item label="路径">
               <el-input v-model="item.encPath" style="max-width: 350px; margin-right: 10px" placeholder="多个路径逗号，隔开" />
             </el-form-item>
+            <el-form-item label="目录名加密">
+              <el-radio-group v-model="item.encFolder" size="small">
+                <el-radio :label="false" border>关闭（默认）</el-radio>
+                <el-radio :label="true" border>开启</el-radio>
+              </el-radio-group>
+              <div style="font-size: 12px; color: gray; margin-top: 6px; line-height: 1.6">
+                <div>关闭：文件夹名保持明文，适合多层路径（如 会员/enc7zip/ChaCha20/*）。</div>
+                <div>开启：encPath 前 N 层文件夹保持明文，其后所有文件夹名加密。需通过代理创建文件夹。</div>
+              </div>
+            </el-form-item>
+            <el-form-item v-if="item.encFolder" label="明文层数">
+              <el-input-number v-model="item.encFolderShift" :min="1" :max="10" size="small" />
+              <div style="font-size: 12px; color: gray; margin-top: 4px; line-height: 1.6">
+                <div>填 1（默认）：encPath 第1层明文，第2层起全部加密。如 encPath=A/B/C/* → A明文，B+C密文。</div>
+                <div>填 2：前2层明文，第3层起加密。如 encPath=A/B/C/* → A+B明文，C密文。</div>
+                <div>填 N：前N层明文，第N+1层起加密。超过路径层数则全部明文（等于没加密）。</div>
+              </div>
+            </el-form-item>
           </div>
         </el-form>
         <span class="dialog-footer">
@@ -171,6 +189,8 @@ const configTemp = {
       encType: 'aesctr',
       enable: false,
       encName: false, // encrypt file name
+      encFolder: false,
+      encFolderShift: 1,
       zipInfoCache: true,
       zipInfoCacheDays: 30,
       zipAutoCache: false,
@@ -194,6 +214,8 @@ const addPasswd = () => {
     password: '123456',
     encType: 'aesctr',
     enable: true,
+    encFolder: false,
+    encFolderShift: 1,
     zipInfoCache: true,
     zipInfoCacheDays: 30,
     zipAutoCache: false,

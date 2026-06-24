@@ -95,7 +95,11 @@
         </el-form-item>
         <el-form-item v-if="item.encFolder" label="明文层数">
           <el-input-number v-model="item.encFolderShift" :min="1" :max="10" size="small" />
-          <span style="font-size: 12px; color: gray; margin-left: 10px">encPath 前几层文件夹保持明文，默认1（仅第一层明文）</span>
+          <div style="font-size: 12px; color: gray; margin-top: 4px; line-height: 1.6">
+            <div>填 1（默认）：encPath 第1层明文，第2层起全部加密。如 encPath=A/B/C/* → A明文，B+C密文。</div>
+            <div>填 2：前2层明文，第3层起加密。如 encPath=A/B/C/* → A+B明文，C密文。</div>
+            <div>填 N：前N层明文，第N+1层起加密。超过路径层数则全部明文（等于没加密）。</div>
+          </div>
         </el-form-item>
         <el-form-item label="子密码:">
           根据文件夹的名字自动识别文件夹的秘钥
