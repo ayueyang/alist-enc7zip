@@ -3,6 +3,7 @@
 import MixEnc from './mixEnc'
 import Rc4Md5 from './rc4Md5'
 import AesCTR from './aesCTR'
+import ChaCha20 from './chaCha20'
 import WinZipAesZip, { isWinZipAesEncType } from './winZipAesZip'
 import SevenZipAesCbc, { isSevenZipAesCbcEncType } from './sevenZipAesCbc'
 
@@ -25,6 +26,11 @@ class FlowEnc {
     if (encryptType === 'aesctr') {
       console.log('@@AesCTR', encryptType, fileSize)
       encryptFlow = new AesCTR(password, fileSize)
+      this.passwdOutward = encryptFlow.passwdOutward
+    }
+    if (encryptType === 'chacha20') {
+      console.log('@@chacha20', encryptType)
+      encryptFlow = new ChaCha20(password, fileSize)
       this.passwdOutward = encryptFlow.passwdOutward
     }
     if (isWinZipAesEncType(encryptType)) {

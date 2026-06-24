@@ -90,7 +90,7 @@ if (!fs.existsSync(getConfPath())) {
 }
 // 从环境变量上读取配置信息，docker首次启动时候可以直接进行配置
 const serverAddr = process.env.ALIST_HOST
-let serverHost = '192.168.1.100'
+let serverHost = '127.0.0.1'
 let serverPort = 5244
 if (serverAddr && serverAddr.indexOf(':') > 6) {
   serverHost = serverAddr.split(':')[0]
@@ -109,7 +109,7 @@ const alistServerTemp = {
     {
       password: '123456',
       describe: 'my video', // 加密内容描述
-      encType: 'aesctr', // 算法类型，可选mix，rc4，winzip-aes-ctr，7z-aes-cbc，默认aesctr
+      encType: 'aesctr', // 算法类型，可选mix，rc4，chacha20，winzip-aes-ctr，7z-aes-cbc，默认aesctr
       enable: true, // enable encrypt
       encName: false, // encrypt file name
       zipInfoCache: true, // cache parsed archive fields for playback
@@ -140,7 +140,7 @@ const webdavServerTemp = [
       {
         password: '123456',
         // 密码类型，mix：速度更快适合电视盒子之类，rc4: 更安全，速度比mix慢一点，几乎无感知。winzip-aes-ctr: 标准WinZip AES压缩包。
-        encType: 'aesctr', // 算法类型，可选mix，rc4，winzip-aes-ctr，7z-aes-cbc，默认aesctr
+        encType: 'aesctr', // 算法类型，可选mix，rc4，chacha20，winzip-aes-ctr，7z-aes-cbc，默认aesctr
         describe: 'my video',
         enable: false,
         encName: false, // encrypt file name
@@ -176,6 +176,9 @@ const normalizedProxyCache = normalizeProxyCacheConfig(configData.proxyCache)
 configData.proxyCache = normalizedProxyCache.config
 
 function initPasswdConfig(passwdInfo) {
+  if (passwdInfo.encFolder === undefined) {
+    passwdInfo.encFolder = false
+  }
   if (passwdInfo.zipInfoCache === undefined) {
     passwdInfo.zipInfoCache = true
   }

@@ -25,6 +25,7 @@
           <el-radio-group v-model="item.encType" style="margin: 0px 5px" size="small">
             <!-- <el-radio label="mix" border>MIX</el-radio> -->
             <el-radio label="aesctr" border>AES-CTR</el-radio>
+            <el-radio label="chacha20" border>CHACHA20</el-radio>
             <el-radio label="rc4" border>RC4</el-radio>
             <el-radio label="winzip-aes-ctr" border>WinZip-AES-CTR</el-radio>
             <el-radio label="7z-aes-cbc" border>7z AES-CBC</el-radio>
@@ -106,7 +107,9 @@
                 <el-radio-group v-model="folderForm.folderEncType" style="margin: 0 15px" size="small">
                   <!-- <el-radio label="mix" border>MIX</el-radio> -->
                   <el-radio label="aesctr" border>AES-CTR</el-radio>
+                  <el-radio label="chacha20" border>CHACHA20</el-radio>
                   <el-radio label="rc4" border>RC4</el-radio>
+                  <el-radio label="7z-aes-cbc" border>7Z-AES-CBC</el-radio>
                 </el-radio-group>
               </el-form-item>
               <el-form-item prop="username" label="文件夹密码">
@@ -165,7 +168,7 @@ const folderForm = reactive({
   encType: 'aesctr',
   folderPasswd: '123456', // 文件夹密码
   folderNameEnc: '',
-  folderEncType: 'rc4',
+  folderEncType: 'aesctr',
   password: '' // base password
 })
 

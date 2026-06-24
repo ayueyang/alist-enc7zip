@@ -19,6 +19,7 @@
         <el-radio-group v-model="folderForm.encType" size="small">
           <!-- <el-radio label="mix" border>MIX</el-radio> -->
           <el-radio label="aesctr" border>AES-CTR</el-radio>
+          <el-radio label="chacha20" border>CHACHA20</el-radio>
           <el-radio label="rc4" border>RC4</el-radio>
         </el-radio-group>
       </el-form-item>
