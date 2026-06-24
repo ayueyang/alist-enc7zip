@@ -23,20 +23,28 @@
 
 ### 1. `node-proxy/src/utils/commonUtil.js` — `convertRealPath` 函数
 
-将写死的单次 `shift()` 改为按 `encFolderShift` 循环 shift：
+重写路径转换逻辑，支持多层明文 + encPath 之外子路径加密：
+
+- **matchedPart**（encPath 匹配范围内）：前 shiftCount 层明文，其余加密
+- **remaining**（encPath 之外的子路径）：全部加密
 
 ```js
-// 改动前
+// 改动前：只处理 pathInfo[0] 内的文件夹名，shift 1次，不处理子路径
 const foldNames = pathInfo[0].split('/')
 foldNames.shift()
+// ... foldPath.replace(encFoldPath, realFoldPath)
 
-// 改动后
-const foldNames = pathInfo[0].split('/')
-const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
-for (let i = 0; i < shiftCount && foldNames.length > 0; i++) {
-  foldNames.shift()
-}
+// 改动后：拆分 matchedPart 和 remaining，分别处理
+const matchedPart = pathInfo[0]
+const prefix = foldPath.substring(0, matchIndex)
+const remaining = foldPath.substring(matchIndex + matchedPart.length)
+// matchedPart 内：前 shiftCount 层明文，其余加密
+// remaining 内：全部加密（如 A/B/C/* 下的新建文件夹名）
 ```
+
+关键修复：
+- 加 `.filter(n => n)` 过滤空字符串，避免尾部斜杠导致路径错误（如 `/M会员/...`）
+- 处理 encPath 之外的子路径（如 `A/B/C/*` 下的 `测试文件夹名`），原作者不处理这部分
 
 ### 2. `node-proxy/src/config.js` — `initPasswdConfig` 函数
 
