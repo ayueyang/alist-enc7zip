@@ -179,6 +179,9 @@ function initPasswdConfig(passwdInfo) {
   if (passwdInfo.encFolder === undefined) {
     passwdInfo.encFolder = false
   }
+  if (passwdInfo.encFolderShift === undefined) {
+    passwdInfo.encFolderShift = 1
+  }
   if (passwdInfo.zipInfoCache === undefined) {
     passwdInfo.zipInfoCache = true
   }

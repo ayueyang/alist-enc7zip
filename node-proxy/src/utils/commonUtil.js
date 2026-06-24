@@ -50,7 +50,11 @@ export function convertRealPath(passwdList, fpath) {
   const { passwdInfo, pathInfo } = pathFindPasswd(passwdList, foldPath)
   if (passwdInfo && passwdInfo.encFolder) {
     const foldNames = pathInfo[0].split('/')
-    foldNames.shift()
+    // encFolderShift: 前N层文件夹保持明文，默认1（兼容原作者行为）
+    const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+    for (let i = 0; i < shiftCount && foldNames.length > 0; i++) {
+      foldNames.shift()
+    }
     let encFoldPath = ''
     let realFoldPath = ''
     for (let name of foldNames) {

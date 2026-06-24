@@ -43,10 +43,6 @@
           <!-- 后缀
           <el-input v-model="item.encSuffix" style="max-width: 150px; margin-left: 10px" placeholder="默认原文件名后缀" /> -->
         </el-form-item>
-        <el-form-item label="目录名">
-          加密
-          <el-switch v-model="item.encFolder" class="ml-2" style="margin-right: 10px; --el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949" />
-        </el-form-item>
         <el-form-item v-if="item.encType === 'winzip-aes-ctr'" label="WinZip探测">
           自动识别ZIP
           <el-switch v-model="item.zipAutoCache" class="ml-2" style="margin-right: 10px; --el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949" />
@@ -86,6 +82,20 @@
         <el-form-item label="路径">
           <el-input v-model="item.encPath" style="max-width: 350px; margin-right: 10px" placeholder="多个目录用逗号，隔开" />
           <span color="gray" style="font-size: 13px; margin-left: 12px">example: encrypt/*</span>
+        </el-form-item>
+        <el-form-item label="目录名加密">
+          <el-radio-group v-model="item.encFolder" size="small">
+            <el-radio :label="false" border>关闭（默认）</el-radio>
+            <el-radio :label="true" border>开启</el-radio>
+          </el-radio-group>
+          <div style="font-size: 12px; color: gray; margin-top: 6px; line-height: 1.6">
+            <div>关闭：文件夹名保持明文，适合多层路径（如 会员/enc7zip/ChaCha20/*）。可用"子密码"功能为文件夹生成带密码的名称。</div>
+            <div>开启：encPath 前 N 层文件夹保持明文，其后所有文件夹名加密。需通过代理创建文件夹。</div>
+          </div>
+        </el-form-item>
+        <el-form-item v-if="item.encFolder" label="明文层数">
+          <el-input-number v-model="item.encFolderShift" :min="1" :max="10" size="small" />
+          <span style="font-size: 12px; color: gray; margin-left: 10px">encPath 前几层文件夹保持明文，默认1（仅第一层明文）</span>
         </el-form-item>
         <el-form-item label="子密码:">
           根据文件夹的名字自动识别文件夹的秘钥
@@ -187,6 +197,7 @@ const alistConfigForm = reactive({
       enable: false,
       encName: false, // encrypt file name
       encFolder: false,
+      encFolderShift: 1,
       zipInfoCache: true,
       zipInfoCacheDays: 30,
       zipAutoCache: false,
@@ -210,6 +221,7 @@ const addPasswd = () => {
     enable: true,
     encName: true,
     encFolder: false,
+    encFolderShift: 1,
     zipInfoCache: true,
     zipInfoCacheDays: 30,
     zipAutoCache: false,
