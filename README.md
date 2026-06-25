@@ -44,7 +44,7 @@ docker run -d \
 首次启动可通过环境变量指定 alist 地址：
 
 ```bash
--e ALIST_HOST=192.168.1.100:5244
+-e ALIST_HOST=127.0.0.1:5244
 ```
 
 ### Docker Compose
@@ -61,7 +61,7 @@ services:
       - ./conf:/app/conf
     environment:
       TZ: Asia/Shanghai
-      ALIST_HOST: 192.168.1.100:5244
+      ALIST_HOST: 127.0.0.1:5244
 ```
 
 ### 源码运行
