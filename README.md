@@ -1,6 +1,6 @@
 # alist-enc7zip
 
-基于 [alist-encrypt](https://github.com/ayueyang/alist-encrypt) 的加密代理增强版。
+基于 [alist-encrypt](https://github.com/traceless/alist-encrypt) 的加密代理增强版。
 
 一个 alist 透明加密代理：上传时加密、下载/播放时解密。加密后的文件存于网盘，云盘无法扫描识别内容，防止资源被删除。同时支持在线播放加密视频、浏览加密图片，WebDAV 客户端操作透明无感。
 
