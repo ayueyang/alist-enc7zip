@@ -81,12 +81,21 @@ Write-Host "  管理面板: http://127.0.0.1:$enc7zipPort/public/index.html (adm
 Write-Host "  代理入口: http://127.0.0.1:$enc7zipPort" -ForegroundColor White
 Write-Host ''
 
-# 后台等待端口就绪，然后打开网页
+# 后台启动 node.exe
+$nodeProc = Start-Process $NodeExe -ArgumentList 'node-proxy\dist\index.js' -WorkingDirectory $ScriptDir -PassThru -WindowStyle Hidden
+
+# 等待端口就绪，然后打开网页
 $opened = $false
 for ($i = 0; $i -lt 15; $i++) {
     Start-Sleep -Seconds 1
+    if ($nodeProc.HasExited) {
+        写错 "enc7zip 启动失败，进程已退出（退出代码: $($nodeProc.ExitCode)）"
+        Write-Host "  请查看 logs\server.log 或重新运行 安装.bat" -ForegroundColor White
+        Read-Host "`n按回车键退出"
+        exit 1
+    }
     if (-not $opened -and (检测enc7zip $enc7zipPort)) {
-        写好 'enc7zip 已启动，打开网页'
+        写好 "enc7zip 已启动，打开网页"
         打开网页 $enc7zipPort
         $opened = $true
     }
@@ -96,12 +105,12 @@ if (-not $opened) {
     写警 "启动较慢，请稍候手动打开: http://127.0.0.1:$enc7zipPort"
 }
 
-# 前台运行 enc7zip（保持窗口）
+# 等待 node 进程退出（保持窗口）
 Write-Host ''
 Write-Host '========================================' -ForegroundColor Green
 Write-Host '  enc7zip 运行中，保持此窗口不要关闭' -ForegroundColor Green
-Write-Host '  按 Ctrl+C 停止服务' -ForegroundColor White
+Write-Host '  关闭此窗口或按 Ctrl+C 可停止服务' -ForegroundColor White
 Write-Host '========================================' -ForegroundColor Green
 Write-Host ''
 
-& $NodeExe 'node-proxy\dist\index.js'
+$nodeProc.WaitForExit()
