@@ -77,8 +77,8 @@ if (-not (Test-Path (Join-Path $Enc7zipDir 'index.js'))) { 写错 '未找到 nod
 # 3. 启动 enc7zip
 写步 "启动 enc7zip（端口 $enc7zipPort）"
 Write-Host '  服务启动中，请勿关闭此窗口...' -ForegroundColor White
-Write-Host '  管理面板: http://127.0.0.1:'"$enc7zipPort"'/public/index.html (admin / admin123)' -ForegroundColor White
-Write-Host '  代理入口: http://127.0.0.1:'"$enc7zipPort -ForegroundColor White
+Write-Host "  管理面板: http://127.0.0.1:$enc7zipPort/public/index.html (admin / admin123)" -ForegroundColor White
+Write-Host "  代理入口: http://127.0.0.1:$enc7zipPort" -ForegroundColor White
 Write-Host ''
 
 # 后台等待端口就绪，然后打开网页
@@ -93,7 +93,7 @@ for ($i = 0; $i -lt 15; $i++) {
 }
 
 if (-not $opened) {
-    写警 '启动较慢，请稍候手动打开: http://127.0.0.1:'"$enc7zipPort
+    写警 "启动较慢，请稍候手动打开: http://127.0.0.1:$enc7zipPort"
 }
 
 # 前台运行 enc7zip（保持窗口）
