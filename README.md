@@ -38,7 +38,7 @@ docker run -d \
   --name alist-enc7zip \
   -p 5277:5277 \
   -v alist-conf:/app/conf \
-  ghcr.io/ayueyang/alist-enc7zip:latest
+  ghcr.io/traceless/alist-encrypt:latest
 ```
 
 首次启动可通过环境变量指定 alist 地址：
@@ -52,7 +52,7 @@ docker run -d \
 ```yaml
 services:
   alist-enc7zip:
-    image: ghcr.io/ayueyang/alist-enc7zip:latest
+    image: ghcr.io/traceless/alist-encrypt:latest
     container_name: alist-enc7zip
     restart: unless-stopped
     ports:
