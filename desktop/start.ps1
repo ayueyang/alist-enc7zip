@@ -6,7 +6,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
 $NodeExe = Join-Path $ScriptDir 'node\node.exe'
-$Enc7zipDir = Join-Path $ScriptDir 'enc7zip'
+$Enc7zipDir = Join-Path $ScriptDir 'node-proxy\dist'
 
 function 写步($m) { Write-Host "`n>>> $m" -ForegroundColor Cyan }
 function 写好($m) { Write-Host "[OK] $m" -ForegroundColor Green }
@@ -72,7 +72,7 @@ if (-not (端口空闲 $enc7zipPort)) {
 
 # 2. 检查文件
 if (-not (Test-Path $NodeExe)) { 写错 '未找到 node\node.exe，压缩包不完整'; Read-Host '按回车退出'; exit 1 }
-if (-not (Test-Path (Join-Path $Enc7zipDir 'index.js'))) { 写错 '未找到 enc7zip\index.js，压缩包不完整'; Read-Host '按回车退出'; exit 1 }
+if (-not (Test-Path (Join-Path $Enc7zipDir 'index.js'))) { 写错 '未找到 node-proxy\dist\index.js，压缩包不完整'; Read-Host '按回车退出'; exit 1 }
 
 # 3. 启动 enc7zip
 写步 "启动 enc7zip（端口 $enc7zipPort）"
@@ -104,4 +104,4 @@ Write-Host '  按 Ctrl+C 停止服务' -ForegroundColor White
 Write-Host '========================================' -ForegroundColor Green
 Write-Host ''
 
-& $NodeExe 'enc7zip\index.js'
+& $NodeExe 'node-proxy\dist\index.js'

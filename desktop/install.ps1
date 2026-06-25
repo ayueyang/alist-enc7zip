@@ -6,7 +6,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
 $NodeExe     = Join-Path $ScriptDir 'node\node.exe'
-$Enc7zipDir  = Join-Path $ScriptDir 'enc7zip'
+$Enc7zipDir  = Join-Path $ScriptDir 'node-proxy\dist'
 $ConfDir     = Join-Path $ScriptDir 'conf'
 $OpenlistDir = Join-Path $ScriptDir 'openlist'
 $Desktop     = [Environment]::GetFolderPath('Desktop')
@@ -130,7 +130,7 @@ echo openlist 已停止
 
 function 启动enc7zip($port) {
     Write-Host ">>> 启动 alist-enc7zip（端口 $port）..." -ForegroundColor Cyan
-    Start-Process $NodeExe -ArgumentList 'enc7zip\index.js' -WorkingDirectory $ScriptDir -WindowStyle Minimized
+    Start-Process $NodeExe -ArgumentList 'node-proxy\dist\index.js' -WorkingDirectory $ScriptDir -WindowStyle Minimized
     # 等待端口就绪
     for ($i = 0; $i -lt 15; $i++) {
         Start-Sleep -Seconds 1
@@ -150,7 +150,7 @@ Write-Host '======================================' -ForegroundColor Cyan
 # 1. 检测文件完整性
 写步 '检测程序文件'
 if (-not (Test-Path $NodeExe))    { 写错 '未找到 node\node.exe，压缩包不完整'; exit 1 }
-if (-not (Test-Path (Join-Path $Enc7zipDir 'index.js'))) { 写错 '未找到 enc7zip\index.js，压缩包不完整'; exit 1 }
+if (-not (Test-Path (Join-Path $Enc7zipDir 'index.js'))) { 写错 '未找到 node-proxy\dist\index.js，压缩包不完整'; exit 1 }
 写好 '程序文件就绪'
 
 # 2. 检测 enc7zip 是否已运行

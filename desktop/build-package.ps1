@@ -1,6 +1,7 @@
-﻿# alist-enc7zip 桌面版打包脚本（生成自解压 exe）
+﻿# alist-enc7zip 桌面版打包脚本（生成自解压 exe，内含完整项目）
 # 用法: powershell -ExecutionPolicy Bypass -File build-package.ps1
 # 产出: dist\alist-enc7zip-desktop-v<version>.exe
+# 解压后: alist-enc7zip\ 文件夹下是完整项目根目录，含 安装.bat
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -9,7 +10,7 @@ $RepoRoot  = Split-Path -Parent $ScriptDir
 $NodeProxyDir = Join-Path $RepoRoot 'node-proxy'
 $Version = (Get-Content (Join-Path $NodeProxyDir 'package.json') -Raw | ConvertFrom-Json).version
 
-Write-Host ">>> 打包 alist-enc7zip 桌面版 v$Version（自解压 exe）" -ForegroundColor Cyan
+Write-Host ">>> 打包 alist-enc7zip 桌面版 v$Version（自解压 exe，内含完整项目）" -ForegroundColor Cyan
 
 # 1. 构建 enc7zip webpack dist
 Write-Host "`n>>> 构建 enc7zip dist..." -ForegroundColor Cyan
@@ -64,45 +65,68 @@ if (-not (Test-Path $sfxModule)) {
     Write-Host '[OK] 7zSD.sfx 就绪' -ForegroundColor Green
 }
 
-# 4. 准备打包目录
+# 4. 准备打包目录（顶层文件夹 alist-enc7zip/）
 Write-Host "`n>>> 准备打包目录..." -ForegroundColor Cyan
 $staging = Join-Path $ScriptDir 'staging'
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging | Out-Null
 
-Copy-Item (Join-Path $ScriptDir 'install.bat') $staging
-Copy-Item (Join-Path $ScriptDir 'install.ps1') $staging
-Copy-Item (Join-Path $ScriptDir 'start.bat') $staging
-Copy-Item (Join-Path $ScriptDir 'start.ps1') $staging
-Copy-Item (Join-Path $ScriptDir 'stop.bat') $staging
-Copy-Item (Join-Path $ScriptDir 'README.txt') $staging
+$projectDir = Join-Path $staging 'alist-enc7zip'
+New-Item -ItemType Directory -Path $projectDir | Out-Null
 
-New-Item -ItemType Directory -Path (Join-Path $staging 'node') | Out-Null
-Copy-Item $nodeExe (Join-Path $staging 'node\node.exe')
+# 4a. 用 robocopy 拷贝整个项目源码（排除大目录和临时文件）
+Write-Host "    拷贝项目源码（排除 .git/node_modules/cache/logs 等）..." -ForegroundColor White
+$excludeDirs = @(
+    '.git', 'node_modules', 'cache', 'logs', 'build', 'conf',
+    'desktop', 'manager', 'docker-conf', 'test-videos',
+    '.trae', '.vscode', '.idea', 'ts-out-dir'
+)
+$excludeFiles = @(
+    '*.log', '*.bin', '*.tmp', 'token.txt', 'package-lock.json',
+    'check_db.js', 'check_probe_detail.js', 'clear_cache.js',
+    'test_api.js', 'test_api2.js', 'test_redirect.js',
+    'webdavTest.js', 'btest.js', 'testAesCtr.html'
+)
+# robocopy 返回码 0-7 为成功，8+ 为失败
+robocopy $RepoRoot $projectDir /E /XD $excludeDirs /XF $excludeFiles /NFL /NDL /NJH /NJS /NP
+if ($LASTEXITCODE -gt 7) { throw "robocopy 失败: exit code $LASTEXITCODE" }
+Write-Host '[OK] 项目源码拷贝完成' -ForegroundColor Green
 
-Copy-Item $distDir (Join-Path $staging 'enc7zip') -Recurse
+# 4b. 拷贝桌面安装脚本到项目根目录
+Write-Host "    拷贝安装脚本..." -ForegroundColor White
+Copy-Item (Join-Path $ScriptDir '安装.bat')   $projectDir -Force
+Copy-Item (Join-Path $ScriptDir 'install.ps1') $projectDir -Force
+Copy-Item (Join-Path $ScriptDir 'start.bat')  $projectDir -Force
+Copy-Item (Join-Path $ScriptDir 'start.ps1')  $projectDir -Force
+Copy-Item (Join-Path $ScriptDir 'stop.bat')   $projectDir -Force
+Copy-Item (Join-Path $ScriptDir 'README.txt') $projectDir -Force
+
+# 4c. 拷贝 node.exe 到项目根目录的 node\
+New-Item -ItemType Directory -Path (Join-Path $projectDir 'node') -Force | Out-Null
+Copy-Item $nodeExe (Join-Path $projectDir 'node\node.exe') -Force
 Write-Host '[OK] 文件就绪' -ForegroundColor Green
 
-# 5. 生成 SFX 配置 config.txt（ASCII，避免 BOM 问题）
+# 5. 生成 SFX 配置 config.txt（UTF-8 no BOM，支持中文 RunProgram）
+# RunProgram 用相对路径 alist-enc7zip\安装.bat 指向解压后的项目根目录
 $configTxt = Join-Path $ScriptDir 'config.txt'
 $configContent = @"
 ;!@Install@!UTF-8!
 Title="alist-enc7zip Desktop"
-BeginPrompt="Install alist-enc7zip? (will extract and run install.bat)"
+BeginPrompt="Extract and install alist-enc7zip?"
 ExtractDialogText="Extracting, please wait..."
 ExtractTitle="alist-enc7zip"
 ExtractPath="yes"
-RunProgram="install.bat"
+RunProgram="alist-enc7zip\安装.bat"
 ;!@InstallEnd@!
 "@
-[System.IO.File]::WriteAllText($configTxt, $configContent, [System.Text.Encoding]::ASCII)
+[System.IO.File]::WriteAllText($configTxt, $configContent, [System.Text.UTF8Encoding]::new($false))
 Write-Host '[OK] SFX 配置生成' -ForegroundColor Green
 
-# 6. 打包 archive.7z
+# 6. 打包 archive.7z（打包 staging 下的 alist-enc7zip 文件夹）
 Write-Host "`n>>> 打包 archive.7z..." -ForegroundColor Cyan
 $archive = Join-Path $ScriptDir 'archive.7z'
 if (Test-Path $archive) { Remove-Item $archive -Force }
-& $sevenZr a $archive (Join-Path $staging '*') -mx=9 | Out-Null
+& $sevenZr a $archive (Join-Path $staging 'alist-enc7zip') -mx=9 | Out-Null
 if (-not (Test-Path $archive)) { throw '7z 打包失败' }
 Write-Host '[OK] archive.7z 打包完成' -ForegroundColor Green
 
@@ -130,4 +154,4 @@ Write-Host ""
 Write-Host "[OK] 打包完成: $outputExe" -ForegroundColor Green
 Write-Host "[OK] 大小: $([math]::Round($size, 1)) MB" -ForegroundColor Green
 Write-Host ""
-Write-Host "用户使用: 双击 exe → 选目录 → 自动运行 install.bat → 桌面生成快捷方式" -ForegroundColor Cyan
+Write-Host "用户使用: 双击 exe → 选目录 → 自动解压到 alist-enc7zip\ 文件夹 → 运行 安装.bat" -ForegroundColor Cyan
