@@ -101,7 +101,9 @@ function getRequestRealName(passwdInfo, fileName, fileInfo) {
   if (isSevenZipAesCbcEncType(passwdInfo.encType)) {
     if (fileInfo) return getSevenZipAesCbcCachedPackageName(fileInfo, fileName)
     if (isSevenZipAesCbcFileName(fileName)) return fileName
-    return fileName
+    // 缓存未命中时（如移动后新路径无缓存），用密码+文件名计算确定性的 .7z 包名
+    // 与 getSevenZipAesCbcRequestPackageName 的回退逻辑保持一致
+    return getSevenZipAesCbcManagedPackageName(passwdInfo.password, fileName)
   }
   if (fileInfo && (fileInfo.externalZip || fileInfo.externalSevenZipAesCbc)) {
     return fileInfo.name || fileName
@@ -191,6 +193,7 @@ async function prepareSevenZipAesCbcListFileInfo(fileInfo, request, passwdInfo) 
   }
   const packagePath = fileInfo.path
   const cachedFileInfo = await getCachedFileInfoByPath(fileInfo.path)
+  logger.debug('@@prepare7z name=', fileInfo.name, 'cached=', !!cachedFileInfo, 'usableCache=', cachedFileInfo ? isUsableSevenZipAesCbcInfoCache(cachedFileInfo, fileInfo.size, passwdInfo.password) : false)
   if (isUsableSevenZipAesCbcInfoCache(cachedFileInfo, fileInfo.size, passwdInfo.password)) {
     const sevenZipAesCbcInnerName = cachedFileInfo.sevenZipAesCbcInfo.innerName
     const sevenZipAesCbcPackagePath = cachedFileInfo.sevenZipAesCbcPackagePath || fileInfo.path
@@ -207,6 +210,7 @@ async function prepareSevenZipAesCbcListFileInfo(fileInfo, request, passwdInfo) 
     return fileInfo
   }
   const managedVirtualName = getSevenZipAesCbcManagedVirtualName(passwdInfo.password, fileInfo.name)
+  logger.debug('@@prepare7z managedVirtualName=', managedVirtualName, 'typed=', managedVirtualName ? isSevenZipAesCbcTypedVirtualName(managedVirtualName) : false, 'autoCache=', passwdInfo.sevenZipAesCbcAutoCache, 'origType=', fileInfo.type)
   if (managedVirtualName && isSevenZipAesCbcTypedVirtualName(managedVirtualName)) {
     fileInfo.externalSevenZipAesCbc = true
     fileInfo.sevenZipAesCbcVirtualName = managedVirtualName
@@ -242,11 +246,12 @@ encNameRouter.all('/api/fs/list', bodyparserMw, cacheFileInfoList, async (ctx, n
     for (let i = 0; i < content.length; i++) {
       const fileInfo = content[i]
       if (fileInfo.is_dir) {
-        const { passwdInfo, pathInfo } = pathFindPasswd(passwdList, decodeURI(fileInfo.path))
+        const { passwdInfo } = pathFindPasswd(passwdList, decodeURI(fileInfo.path))
         if (passwdInfo && passwdInfo.encFolder) {
           const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
-          const foldNames = pathInfo[0].split('/').filter(n => n)
-          if (foldNames.length > shiftCount) {
+          // 用完整路径深度判断是否在密文层，pathInfo[0] 只含 encPath 匹配部分会导致深度计算错误
+          const pathNames = decodeURI(fileInfo.path).split('/').filter(n => n)
+          if (pathNames.length > shiftCount) {
             fileInfo.name = convertShowName(passwdInfo.password, passwdInfo.encType, fileInfo.name)
           }
         }
@@ -317,7 +322,7 @@ encNameRouter.put('/api/fs/put', async (ctx, next) => {
         ? getSevenZipAesCbcManagedPackageName(passwdInfo.password, fileName)
         : getEncryptedFileName(passwdInfo, fileName)
       filePath = path.dirname(uploadPath) + '/' + realName
-      console.log('@@@encfileName', fileName, uploadPath, filePath)
+      logger.debug('@@encfileName', fileName, uploadPath, filePath)
       headers['file-path'] = encodeURIComponent(filePath)
     }
     if (isWinZipAesEncType(passwdInfo.encType)) {
@@ -352,7 +357,8 @@ encNameRouter.all('/api/fs/remove', bodyparserMw, async (ctx, next) => {
   const { dir: showDir, names } = ctx.request.body
   const { webdavConfig } = ctx.req
   const dir = convertRealPath(ctx.req.webdavConfig.passwdList, showDir)
-  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, dir + '/')
+  // 用显示路径匹配 encPath（加密路径中的密文文件夹名无法匹配 encPath 显示名模式）
+  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, showDir + '/')
   // maybe a folder，remove anyway the name
   let fileNames = Object.assign([], names)
   if (passwdInfo && passwdInfo.encName && isSevenZipAesCbcEncType(passwdInfo.encType)) {
@@ -362,9 +368,20 @@ encNameRouter.all('/api/fs/remove', bodyparserMw, async (ctx, next) => {
     }
   } else if (passwdInfo && passwdInfo.encName && !isSevenZipAesCbcEncType(passwdInfo.encType)) {
     fileNames = Object.assign([], names)
+    const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+    // 用显示路径的完整深度判断明文层（pathInfo[0] 只含 encPath 匹配部分，不含子路径）
+    const showDirNames = showDir.split('/').filter(n => n)
+    const isPlainLayer = passwdInfo.encFolder && showDirNames.length < shiftCount
     for (const name of names) {
       if (isRawZipName(passwdInfo, name) || isRawSevenZipAesCbcName(passwdInfo, name)) {
         continue
+      }
+      // 明文层的文件夹名是明文，不需要加密
+      if (isPlainLayer) {
+        const cachedFileInfo = await getCachedFileInfoByPath(joinUrlPath(dir, name))
+        if (cachedFileInfo && cachedFileInfo.is_dir) {
+          continue
+        }
       }
       // is not enc name
       const realName = convertRealName(passwdInfo.password, passwdInfo.encType, name)
@@ -409,13 +426,31 @@ encNameRouter.all('/api/fs/dirs', bodyparserMw, async (ctx, next) => {
   const respBody = await httpClient(ctx.req)
   const result = JSON.parse(respBody)
   ctx.body = result
-  const { passwdInfo, pathInfo } = pathFindPasswd(ctx.req.webdavConfig.passwdList, foldPath + '/')
-  if (passwdInfo && passwdInfo.encFolder && result.data && result.data.length > 0) {
-    const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
-    const foldNames = pathInfo[0].split('/').filter(n => n)
-    if (foldNames.length >= shiftCount) {
-      for (const nameObj of result.data) {
-        nameObj.name = convertShowName(passwdInfo.password, passwdInfo.encType, nameObj.name)
+  // 用显示路径前缀匹配 encPath（完整匹配在多层 encPath 中间层浏览时会失败）
+  // 例如 encPath=会员/enc7zip/ChaCha20/*，用户浏览 /会员/enc7zip/ 时完整匹配失败
+  const { passwdList } = ctx.req.webdavConfig
+  const showDirNames = foldPath.split('/').filter(n => n)
+  if (result.data && result.data.length > 0) {
+    outer: for (const passwdInfo of passwdList) {
+      if (!passwdInfo.enable || !passwdInfo.encFolder) continue
+      for (const encPath of passwdInfo.encPath) {
+        // encPath 格式如 "会员/enc7zip/ChaCha20/*"，去掉 /* 得到前缀
+        const encPathNames = encPath.replace(/\/\*$/, '').split('/').filter(n => n)
+        // 检查 foldPath 是否是 encPath 前缀路径（showDirNames 前 N 项等于 encPathNames）
+        const checkLen = Math.min(showDirNames.length, encPathNames.length)
+        let isPrefix = true
+        for (let i = 0; i < checkLen; i++) {
+          if (showDirNames[i] !== encPathNames[i]) { isPrefix = false; break }
+        }
+        if (!isPrefix) continue
+        // 子项深度 = showDirNames.length + 1，在密文层 ⟺ 子项深度 > shiftCount ⟺ showDirNames.length >= shiftCount
+        const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+        if (showDirNames.length >= shiftCount) {
+          for (const nameObj of result.data) {
+            nameObj.name = convertShowName(passwdInfo.password, passwdInfo.encType, nameObj.name)
+          }
+        }
+        break outer
       }
     }
   }
@@ -439,7 +474,8 @@ const copyOrMoveFile = async (ctx, next) => {
   const { webdavConfig } = ctx.req
   const dstDir = convertRealPath(ctx.req.webdavConfig.passwdList, dstShowDir)
   const srcDir = convertRealPath(ctx.req.webdavConfig.passwdList, srcShowDir)
-  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, srcDir)
+  // 用显示路径匹配 encPath（加密路径中的密文文件夹名无法匹配 encPath 显示名模式）
+  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, srcShowDir + '/')
   let fileNames = []
   if (passwdInfo && passwdInfo.encName && isSevenZipAesCbcEncType(passwdInfo.encType)) {
     logger.info('@@move 7z AES-CBC name', passwdInfo.encName)
@@ -448,6 +484,10 @@ const copyOrMoveFile = async (ctx, next) => {
     }
   } else if (passwdInfo && passwdInfo.encName && !isSevenZipAesCbcEncType(passwdInfo.encType)) {
     logger.info('@@move encName', passwdInfo.encName)
+    const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
+    // 用显示路径的完整深度判断明文层（pathInfo[0] 只含 encPath 匹配部分，不含子路径）
+    const srcShowDirNames = srcShowDir.split('/').filter(n => n)
+    const isPlainLayer = passwdInfo.encFolder && srcShowDirNames.length < shiftCount
     for (const name of names) {
       // is not enc name
       if (name.indexOf(origPrefix) === 0) {
@@ -461,6 +501,11 @@ const copyOrMoveFile = async (ctx, next) => {
         isRawZipName(passwdInfo, name) ||
         isRawSevenZipAesCbcName(passwdInfo, name)
       ) {
+        fileNames.push(name)
+        continue
+      }
+      // 明文层的文件夹名是明文，不需要加密
+      if (isPlainLayer && cachedFileInfo && cachedFileInfo.is_dir) {
         fileNames.push(name)
         continue
       }
@@ -487,7 +532,7 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
   const { path: filePath } = ctx.request.body
   const { webdavConfig } = ctx.req
   const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, filePath)
-  console.log('@@@encNameRouter /api/fs/get', filePath, 'passwdInfo:', !!passwdInfo, 'encName:', passwdInfo?.encName)
+  logger.debug('@@encNameRouter /api/fs/get', filePath, 'passwdInfo:', !!passwdInfo, 'encName:', passwdInfo?.encName)
   let fileInfo = null
   if (passwdInfo && passwdInfo.encName) {
     ctx.req.encVirtualPath = filePath
@@ -495,12 +540,15 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
     delete ctx.req.headers['content-length']
     // check fileName is not enc
     const fileName = path.basename(filePath)
+    // 先转换文件夹路径为密文路径，再用密文路径查找缓存
+    // list 缓存 key 是 convertRealPath(密文文件夹) + '/' + 明文文件名，get 必须用相同 key 才能命中
+    const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
+    const realFilePath = joinUrlPath(folderRealPath, fileName)
+    // getCachedSevenZipAesCbcFileInfoByPath 内部已通过 getSevenZipAesCbcCachedFileInfoByVirtualPath
+    // 用明文名计算 managed package name 并查找密文包路径缓存，无需额外拼接 .7z 后缀查找
     fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
-      ? await getCachedSevenZipAesCbcFileInfoByPath(filePath, passwdInfo)
-      : await getCachedFileInfoByPath(filePath)
-    if (!fileInfo && isSevenZipAesCbcEncType(passwdInfo.encType) && !isSevenZipAesCbcFileName(fileName)) {
-      fileInfo = await getCachedSevenZipAesCbcFileInfoByPath(`${filePath}.7z`, passwdInfo)
-    }
+      ? await getCachedSevenZipAesCbcFileInfoByPath(realFilePath, passwdInfo)
+      : await getCachedFileInfoByPath(realFilePath)
     if (fileInfo && fileInfo.is_dir) {
       await next()
       return
@@ -527,10 +575,9 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
       }
     }
     //  Check if it is a directory
-    const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
     const realName = getRequestRealName(passwdInfo, fileName, fileInfo)
     const fpath = folderRealPath + '/' + realName
-    console.log('@@@getFilePath', fpath)
+    logger.debug('@@getFilePath', fpath)
     ctx.request.body.path = fpath
   }
   await next()
@@ -539,6 +586,15 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
       const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
       const realName = getRequestRealName(passwdInfo, path.basename(filePath), fileInfo)
       await removeFileInfo([filePath, joinUrlPath(folderRealPath, realName)])
+      return
+    }
+    // 缓存未命中时，用明文名（双重确认+扩展名定类型）判断，文本解密优先于下载探测
+    // 双重确认：passwdInfo.encType=7z-aes-cbc 确认加密区，明文名非.7z 确认是虚拟名（managed name）
+    // 扩展名定类型：用明文名扩展名判断文件类型（.mp4→视频），探测永远只是兜底
+    if (!fileInfo && isSevenZipAesCbcEncType(passwdInfo.encType) && !isSevenZipAesCbcFileName(path.basename(filePath))) {
+      const plainName = path.basename(filePath)
+      ctx.body.data.name = plainName
+      ctx.body.data.type = getAListFileTypeByName(plainName)
       return
     }
     // return showName
@@ -552,6 +608,33 @@ encNameRouter.all('/api/fs/get', bodyparserMw, async (ctx, next) => {
       ctx.body.data.type = getAListFileTypeByName(showName)
     }
   }
+})
+
+// 拦截 alist 归档预览 API，对加密文件做明文→密文路径转换
+encNameRouter.all(/\/api\/fs\/archive\/*/, bodyparserMw, async (ctx, next) => {
+  const { path: filePath } = ctx.request.body
+  logger.debug('@@encNameRouter /api/fs/archive', JSON.stringify(filePath))
+  if (!filePath) {
+    await next()
+    return
+  }
+  const { webdavConfig } = ctx.req
+  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, filePath)
+  logger.debug('@@archive passwdInfo matched:', !!passwdInfo, passwdInfo ? `encName=${passwdInfo.encName} encPath=${JSON.stringify(passwdInfo.encPath)}` : '')
+  if (passwdInfo && passwdInfo.encName) {
+    delete ctx.req.headers['content-length']
+    const fileName = path.basename(filePath)
+    // getCachedSevenZipAesCbcFileInfoByPath 内部已覆盖 managed package path 兜底查找
+    let fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
+      ? await getCachedSevenZipAesCbcFileInfoByPath(filePath, passwdInfo)
+      : await getCachedFileInfoByPath(filePath)
+    const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
+    const realName = getRequestRealName(passwdInfo, fileName, fileInfo)
+    ctx.request.body.path = folderRealPath + '/' + realName
+    ctx.req.reqBody = JSON.stringify(ctx.request.body)
+    logger.debug('@@archive path converted:', folderRealPath + '/' + realName)
+  }
+  await next()
 })
 
 encNameRouter.all('/api/fs/rename', bodyparserMw, async (ctx, next) => {
@@ -575,8 +658,9 @@ encNameRouter.all('/api/fs/rename', bodyparserMw, async (ctx, next) => {
   }
   if (passwdInfo && passwdInfo.encFolder && fileInfo && fileInfo.is_dir) {
     const shiftCount = Math.max(1, Number(passwdInfo.encFolderShift) || 1)
-    const foldNames = pathInfo[0].split('/').filter(n => n)
-    if (foldNames.length > shiftCount) {
+    // 用显示路径的完整深度判断明文层（pathInfo[0] 只含 encPath 匹配部分，不含子路径）
+    const pathNames = filePath.split('/').filter(n => n)
+    if (pathNames.length > shiftCount) {
       reqBody.name = convertRealName(passwdInfo.password, passwdInfo.encType, name)
     }
   }
@@ -596,7 +680,7 @@ encNameRouter.all('/api/fs/rename', bodyparserMw, async (ctx, next) => {
     reqBody.name = getEncryptedFileName(passwdInfo, getExternalZipRenameTarget(fileInfo, name))
   }
   ctx.req.reqBody = reqBody
-  console.log('@@@rename', reqBody)
+  logger.debug('@@rename', reqBody)
   const respBody = await httpClient(ctx.req)
   ctx.body = respBody
 })
@@ -616,18 +700,16 @@ const handleDownload = async (ctx, next) => {
   if (filePath.indexOf('/p/') === 0) {
     filePath = filePath.replace('/p/', '/')
   }
-  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, filePath)
+  const { passwdInfo } = pathFindPasswd(webdavConfig.passwdList, decodeURIComponent(filePath))
   if (passwdInfo && passwdInfo.encName) {
     // reset content-length length
     delete ctx.req.headers['content-length']
     // Check whether the file name refers to an encrypted file or a directory
-    const fileName = path.basename(filePath)
+    const fileName = decodeURIComponent(path.basename(filePath))
+    // getCachedSevenZipAesCbcFileInfoByPath 内部已覆盖 managed package path 兜底查找
     let fileInfo = isSevenZipAesCbcEncType(passwdInfo.encType)
       ? await getCachedSevenZipAesCbcFileInfoByPath(filePath, passwdInfo)
       : await getCachedFileInfoByPath(filePath)
-    if (!fileInfo && isSevenZipAesCbcEncType(passwdInfo.encType) && !isSevenZipAesCbcFileName(fileName)) {
-      fileInfo = await getCachedSevenZipAesCbcFileInfoByPath(`${filePath}.7z`, passwdInfo)
-    }
     if (fileInfo && fileInfo.externalSevenZipAesCbc) {
       request.isExternalSevenZipAesCbc = true
       request.sevenZipAesCbcVirtualName =
@@ -637,7 +719,8 @@ const handleDownload = async (ctx, next) => {
       request.cachedExternalSevenZipAesCbcInfo = fileInfo.sevenZipAesCbcInfo
     }
     const realName = getRequestRealName(passwdInfo, fileName, fileInfo)
-    const folderRealPath = convertRealPath(ctx.req.webdavConfig.passwdList, path.dirname(filePath))
+    // /d/ 链路 filePath 来自 ctx.req.url（URL编码），需先 decode 再 convertRealPath，最后 encode 回去
+    const folderRealPath = encodeURI(convertRealPath(ctx.req.webdavConfig.passwdList, decodeURIComponent(path.dirname(filePath))))
     // Replace the real-name before downloading
     ctx.req.url = ctx.req.url.replace(path.dirname(filePath), folderRealPath).replace(regexPath, `/${realName}$2`)
     ctx.req.urlAddr = ctx.req.urlAddr.replace(path.dirname(filePath), folderRealPath).replace(regexPath, `/${realName}$2`)

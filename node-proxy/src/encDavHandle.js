@@ -1,6 +1,6 @@
 'use strict'
 
-import { pathFindPasswd, convertRealName, convertShowName, getOrigName, isEncryptedZipName, isOrigName, isRawZipName } from './utils/commonUtil'
+import { pathFindPasswd, convertRealName, convertRealPath, convertShowName, getOrigName, isEncryptedZipName, isOrigName, isRawZipName } from './utils/commonUtil'
 import { cacheFileInfo, getFileInfo, getZipInfoCacheExpireSeconds, isZipInfoCacheEnabled } from './dao/fileDao'
 import { logger } from './common/logger'
 import path from 'path'
@@ -182,6 +182,34 @@ async function prepareSevenZipAesCbcWebdavFileInfo(fileDetail, request, passwdIn
       sevenZipAesCbcPackagePath: fileDetail.path,
     }
     await cacheSevenZipAesCbcManagedNameFileInfo(managedFileInfo, managedVirtualName, passwdInfo.password)
+    // 修复2: Depth:0 PROPFIND 同步探测 plainSize（5秒超时，try/catch 降级）
+    // 避免首次访问时 PROPFIND 返回密文大小导致 PotPlayer 等播放器播放失败
+    const isDepth0Propfind = String((request && request.headers && request.headers.depth) || '').toLowerCase() === '0'
+    if (isDepth0Propfind) {
+      try {
+        const probeInfo = await Promise.race([
+          parseSevenZipAesCbcInfoFromRemote(
+            request.urlAddr,
+            request.headers,
+            fileDetail.size,
+            passwdInfo.password
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('plainSize probe timeout')), 5000)),
+        ])
+        const probedFileInfo = {
+          ...managedFileInfo,
+          plainSize: probeInfo.plainSize,
+          sevenZipAesCbcInfo: serializeSevenZipAesCbcInfo(probeInfo),
+          sevenZipAesCbcPasswordHash: getSevenZipAesCbcPasswordHash(passwdInfo.password),
+        }
+        if (isZipInfoCacheEnabled(passwdInfo)) {
+          await cacheFileInfo(probedFileInfo, getZipInfoCacheExpireSeconds(passwdInfo))
+        }
+        return probedFileInfo
+      } catch (e) {
+        logger.debug('@@prepare7z plainSize probe failed:', e.message || e)
+      }
+    }
     return {
       ...managedFileInfo,
       externalSevenZipAesCbc: true,
@@ -244,7 +272,13 @@ function getRequestRealName(passwdInfo, url, fileInfo, method = 'GET') {
     if (fileInfo && fileInfo.sevenZipAesCbcPackageName) return fileInfo.sevenZipAesCbcPackageName
     if (fileInfo && fileInfo.name) return fileInfo.name
     if (isSevenZipAesCbcFileName(fileName)) return fileName
-    return fileName
+    // 修复3: 无缓存时，明文虚拟名转密文包名（PotPlayer 等直接用明文路径访问子目录文件时）
+    try {
+      return getSevenZipAesCbcManagedPackageName(passwdInfo.password, decodeURIComponent(fileName))
+    } catch (e) {
+      logger.debug('@@getRequestRealName 7z managed package name failed:', e.message || e)
+      return fileName
+    }
   }
   if (fileInfo && (fileInfo.externalZip || fileInfo.externalSevenZipAesCbc)) return fileInfo.name || fileName
   if (isRawZipName(passwdInfo.password, passwdInfo.encType, fileName)) return fileName
@@ -281,14 +315,16 @@ const handle = async (ctx, next) => {
             ? convertRealName(passwdInfo.password, passwdInfo.encType, url)
             : reqFileName
       // when the name contain the + , ! ,
-      const sourceUrl = path.dirname(url) + '/' + realName
+      // 修复3: encFolder 子目录访问时，目录名需要转换为密文（前 encFolderShift 层保持明文）
+      const realDir = passwdInfo.encFolder ? encodeURI(convertRealPath(passwdList, decodeURIComponent(path.dirname(url)))) : path.dirname(url)
+      const sourceUrl = realDir + '/' + realName
       const sourceFileInfo = await getFileInfo(sourceUrl)
       logger.debug('@@@sourceFileInfo', sourceFileInfo, reqFileName, realName, url, sourceUrl)
       // it is file, convert file name
       if ((sourceFileInfo && !sourceFileInfo.is_dir) || isWebdavFileRequest(url, reqFileName)) {
         request.isManagedZipName = isManagedZipName
-        request.url = path.dirname(request.url) + '/' + realName
-        request.urlAddr = path.dirname(request.urlAddr) + '/' + realName
+        request.url = realDir + '/' + realName
+        request.urlAddr = (passwdInfo.encFolder ? encodeURI(convertRealPath(passwdList, decodeURIComponent(path.dirname(request.urlAddr)))) : path.dirname(request.urlAddr)) + '/' + realName
       }
     }
     // decrypt file name
@@ -387,6 +423,8 @@ const handle = async (ctx, next) => {
     const fileName = path.basename(url)
     const cachedFileInfo = await getFileInfo(url)
     const realName = getRequestRealName(passwdInfo, url, cachedFileInfo, request.method)
+    // 修复3: encFolder 子目录访问时，目录名需要转换为密文（前 encFolderShift 层保持明文）
+    const realDir = passwdInfo.encFolder ? encodeURI(convertRealPath(passwdList, decodeURIComponent(path.dirname(url)))) : path.dirname(url)
     // maybe from aliyundrive, check this req url while get file list from enc folder
     if (url.endsWith('/') && 'GET,HEAD,DELETE'.includes(request.method.toLocaleUpperCase())) {
       let respBody = await httpClient(ctx.req, ctx.res)
@@ -438,8 +476,8 @@ const handle = async (ctx, next) => {
             ? undefined
             : decodeURIComponent(fileName)
     }
-    request.url = path.dirname(request.url) + '/' + realName
-    request.urlAddr = path.dirname(request.urlAddr) + '/' + realName
+    request.url = realDir + '/' + realName
+    request.urlAddr = (passwdInfo.encFolder ? encodeURI(convertRealPath(passwdList, decodeURIComponent(path.dirname(request.urlAddr)))) : path.dirname(request.urlAddr)) + '/' + realName
     if (request.method.toLocaleUpperCase() !== 'PUT') {
       await next()
       return
@@ -452,7 +490,7 @@ const handle = async (ctx, next) => {
     } else if (isSevenZipAesCbcEncType(passwdInfo.encType)) {
       fileSize = SevenZipAesCbc.packageSize(contentLength * 1, { originalName: fileName })
     }
-    const fileDetail = { path: path.dirname(url) + '/' + realName, name: realName, is_dir: false, size: fileSize }
+    const fileDetail = { path: realDir + '/' + realName, name: realName, is_dir: false, size: fileSize }
     logger.info('@@@put url', url)
     // 在页面上传文件，rclone会重复上传，所以要进行缓存文件信息，也不能在next() 因为rclone copy命令会出异常
     await cacheFileInfo(fileDetail)

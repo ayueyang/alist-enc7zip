@@ -48,7 +48,7 @@ Alist-encrypt 就是为了解决这个问题，它可以在网页中上传文件
 
 > npm run serve
 
-最后就打开代理服务器地址 http://127.0.0.1:5344/public/index.html 即可进入配置页面，账号 admin，密码默认 123456。配置后之后，打开http://127.0.0.1:5344 即可访问到 alist 的服务了
+最后就打开代理服务器地址 http://127.0.0.1:5277/public/index.html 即可进入配置页面，账号 admin，密码默认 123456。配置后之后，打开http://127.0.0.1:5277 即可访问到 alist 的服务了
 
 ### docker 安装
 
@@ -58,13 +58,13 @@ Alist-encrypt 就是为了解决这个问题，它可以在网页中上传文件
 
 执行启动容器即可
 
-> docker run -d -p 5344:5344 -v /etc/conf:/node-proxy/conf --name=alist-encrypt prophet310/alist-encrypt:beta
+> docker run -d -p 5277:5277 -v /etc/conf:/node-proxy/conf --name=alist-encrypt prophet310/alist-encrypt:beta
 
 可以添加环境变量 -e ALIST_HOST=192.168.9.100:5244 这样首次启动就会默认设置 alist ip 地址
 
 arm 版本目前单独打包 beta-arm，后续再放一起
 
-> docker run -d -p 5344:5344 -v /etc/conf:/node-proxy/conf --name=alist-encrypt prophet310/alist-encrypt:beta-arm
+> docker run -d -p 5277:5277 -v /etc/conf:/node-proxy/conf --name=alist-encrypt prophet310/alist-encrypt:beta-arm
 
 docker-compose.yml
 
@@ -81,10 +81,10 @@ docker-compose.yml
           TZ: Asia/Shanghai
           ALIST_HOST: 192.168.31.254:5254        # 建议加个设置项，类似这样
         ports:
-          - 5344:5344
+          - 5277:5277
         network_mode: bridge
 
-启动后就打开代理服务器地址 http://127.0.0.1:5344/public/index.html 即可进入配置页面，账号 admin，密码默认 123456。配置后之后，打开http://127.0.0.1:5344 即可访问到 alist 的服务了。
+启动后就打开代理服务器地址 http://127.0.0.1:5277/public/index.html 即可进入配置页面，账号 admin，密码默认 123456。配置后之后，打开http://127.0.0.1:5277 即可访问到 alist 的服务了。
 
 对于路径的设置，目前是支持正则表达式的，推荐表达式例如: movie_encrypt/\* ，这样的话所有的 movie_encrypt 目录的文件都会被加密传输。
 

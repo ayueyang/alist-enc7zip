@@ -54,3 +54,10 @@ node-proxy/test_api.js
 node-proxy/test_api2.js
 node-proxy/test_redirect.js
 
+# local tooling & runtime data
+.trae/
+docker-conf/
+test-videos/
+token.txt
+*.bin
+

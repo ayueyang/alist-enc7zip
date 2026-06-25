@@ -166,7 +166,7 @@ function getConfFilePath() {
 const exist = fs.existsSync(getConfFilePath())
 if (!exist) {
   // 把默认数据写入到config.json
-  const configData = { alistServer: alistServerTemp, webdavServer: webdavServerTemp, port: 5344, proxyCache: defaultProxyCacheConfig }
+  const configData = { alistServer: alistServerTemp, webdavServer: webdavServerTemp, port: 5277, proxyCache: defaultProxyCacheConfig }
   fs.writeFileSync(getConfFilePath(), JSON.stringify(configData, '', '\t'))
 }
 // 读取配置文件
@@ -279,7 +279,7 @@ export function initAlistConfig(alistServerConfig) {
 initAlistConfig(configData.alistServer)
 
 /** 代理服务的端口 */
-export const port = configData.port || 5344
+export const port = configData.port || 5277
 
 export const version = '0.3.0'
 

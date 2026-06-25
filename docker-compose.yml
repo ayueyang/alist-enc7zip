@@ -1,0 +1,13 @@
+services:
+  alist-enc7zip:
+    build: ./node-proxy
+    container_name: alist-enc7zip
+    restart: unless-stopped
+    ports:
+      - "5277:5277"
+    volumes:
+      - ./docker-conf:/app/conf
+    environment:
+      - TZ=Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

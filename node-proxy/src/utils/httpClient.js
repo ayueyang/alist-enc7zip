@@ -78,9 +78,16 @@ export async function httpProxy(request, response, encryptTransform, decryptTran
         decryptTransform &&
         httpResp.statusCode >= 300 &&
         httpResp.statusCode < 400 &&
-        redirectLocation &&
-        (request.remoteRedirectCount || 0) < 5
+        redirectLocation
       ) {
+        // 修复1: 5 次重定向上限后返回 502，防止嵌套重定向死循环
+        if ((request.remoteRedirectCount || 0) >= 5) {
+          httpResp.resume()
+          response.statusCode = 502
+          response.end('Too many redirects')
+          resolve()
+          return
+        }
         httpResp.resume()
         request.remoteRedirectCount = (request.remoteRedirectCount || 0) + 1
         prepareRedirectHeaders(request, redirectLocation)

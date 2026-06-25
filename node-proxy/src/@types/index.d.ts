@@ -6,6 +6,7 @@ declare global {
     password: string
     encType: string
     encFolder?: boolean
+    encFolderShift?: number
     encName?: boolean
     encSuffix?: string
     zipInfoCache?: boolean

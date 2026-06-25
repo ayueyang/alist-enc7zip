@@ -410,23 +410,33 @@ proxyRouter.all('/redirect/:key', async (ctx) => {
   request.sevenZipAesCbcVirtualName = virtualName
   if (shouldDecode) {
     let flowEnc = null
-    if (isWinZipAesEncType(passwdInfo.encType)) {
-      flowEnc = await prepareWinZipAesDecrypt(request, passwdInfo, fileSize, range, deserializeWinZipAesZipInfo(cachedZipInfoData))
-    } else if (isSevenZipAesCbcEncType(passwdInfo.encType)) {
-      flowEnc = await prepareSevenZipAesCbcDecrypt(
-        request,
-        passwdInfo,
-        fileSize,
-        range,
-        deserializeSevenZipAesCbcInfo(cachedSevenZipAesCbcInfoData)
-      )
-    } else {
-      flowEnc = new FlowEnc(passwdInfo.password, passwdInfo.encType, fileSize)
-      if (start) {
-        await flowEnc.setPosition(start)
+    try {
+      if (isWinZipAesEncType(passwdInfo.encType)) {
+        flowEnc = await prepareWinZipAesDecrypt(request, passwdInfo, fileSize, range, deserializeWinZipAesZipInfo(cachedZipInfoData))
+        // 修复1: WinZip AES 跟随网盘多次 302，避免浏览器 Range 头丢失导致黑屏
+        request.followRemoteRedirect = true
+      } else if (isSevenZipAesCbcEncType(passwdInfo.encType)) {
+        flowEnc = await prepareSevenZipAesCbcDecrypt(
+          request,
+          passwdInfo,
+          fileSize,
+          range,
+          deserializeSevenZipAesCbcInfo(cachedSevenZipAesCbcInfoData)
+        )
+        // 修复1: 7z AES-CBC 跟随网盘多次 302，避免浏览器 Range 头丢失导致黑屏
+        request.followRemoteRedirect = true
+      } else {
+        flowEnc = new FlowEnc(passwdInfo.password, passwdInfo.encType, fileSize)
+        if (start) {
+          await flowEnc.setPosition(start)
+        }
       }
+      decryptTransform = flowEnc.decryptTransform()
+    } catch (e) {
+      // 修复1: prepare 解密失败时降级为透传，避免 /redirect/ 链路整体崩溃
+      logger.info('----redirect prepare decrypt failed, passthrough---', e.message || e)
+      decryptTransform = null
     }
-    decryptTransform = flowEnc.decryptTransform()
   }
   // 请求实际服务资源
   await httpProxy(request, response, null, decryptTransform)
@@ -586,6 +596,12 @@ async function proxyHandle(ctx, next) {
       if (fileInfo.externalZip) {
         request.isExternalZip = true
         request.zipVirtualName = fileInfo.zipInfo && fileInfo.zipInfo.innerName
+      } else if (fileInfo.zipVirtualName) {
+        // 上传型 WinZip 文件（externalZip=false）也需提前设置 zipVirtualName，
+        // 否则 prepareWinZipAesDecrypt 会退化为使用 request.url 中的加密 .zip 文件名，
+        // 导致 applyWinZipAesResponseHeaders/applyWinZipAesHeadResponse 用加密名查 MIME
+        // （getMimeByName 去掉 .zip 后无扩展名 → application/octet-stream）
+        request.zipVirtualName = fileInfo.zipVirtualName
       }
       if (fileInfo.externalSevenZipAesCbc && isUsableSevenZipAesCbcInfoCache(fileInfo, fileInfo.size, passwdInfo.password)) {
         request.isExternalSevenZipAesCbc = true
@@ -609,7 +625,9 @@ async function proxyHandle(ctx, next) {
     }
     request.passwdInfo = passwdInfo
     // logger.info('@@@@request.filePath ', request.filePath, result)
-    if (request.fileSize === 0) {
+    // 7z-AES-CBC 候选文件（缓存未命中，如移动后新路径）即使 fileSize=0 也不能跳过，
+    // 因为 parseSevenZipAesCbcInfoFromRemote 内部的 getRemoteSize 会自己通过 HEAD 请求获取文件大小
+    if (request.fileSize === 0 && !request.isExternalSevenZipAesCbcCandidate) {
       // 说明不用加密
       return await httpProxy(request, response)
     }
@@ -691,6 +709,11 @@ async function proxyHandle(ctx, next) {
         request.isExternalSevenZipAesCbc = true
         request.sevenZipAesCbcVirtualName =
           externalFileInfo.sevenZipAesCbcInfo && externalFileInfo.sevenZipAesCbcInfo.innerName
+        // 缓存未命中时从远程解析获取了实际文件大小，回填到 request.fileSize，
+        // 避免后续 prepareSevenZipAesCbcDecrypt 重复请求远程获取大小
+        if (externalFileInfo.size && request.fileSize === 0) {
+          request.fileSize = externalFileInfo.size * 1
+        }
       }
       const cachedSevenZipAesCbcInfo = isZipInfoCacheEnabled(passwdInfo) && isUsableSevenZipAesCbcInfoCache(fileInfo, request.fileSize, passwdInfo.password)
         ? deserializeSevenZipAesCbcInfo(fileInfo && fileInfo.sevenZipAesCbcInfo)
