@@ -178,7 +178,7 @@ const configTemp = {
   name: 'webdav',
   path: '/webdav/*',
   describe: 'webdav服务',
-  serverHost: '192.168.1.100',
+  serverHost: '127.0.0.1',
   serverPort: '5244',
   https: false,
   enable: true,

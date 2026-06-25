@@ -5,7 +5,7 @@
     <!--条件搜索-->
     <el-form ref="refSearchForm" :label-position="labelPosition" label-width="115px" :model="alistConfigForm">
       <el-form-item prop="username" label="服务器">
-        <el-input v-model="alistConfigForm.serverHost" style="max-width: 260px" placeholder="192.168.1.100" />
+        <el-input v-model="alistConfigForm.serverHost" style="max-width: 260px" placeholder="127.0.0.1" />
         <span color="gray" style="font-size: 12px; margin-left: 12px">alist的ip或者域名地址</span>
       </el-form-item>
       <el-form-item prop="password" label="端口">
@@ -190,7 +190,7 @@ const alistConfigForm = reactive({
   name: '',
   path: '/*',
   describe: '',
-  serverHost: '192.168.1.100',
+  serverHost: '127.0.0.1',
   serverPort: '5244',
   https: false,
   passwdList: [
