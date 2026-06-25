@@ -64,3 +64,12 @@ token.txt
 # enc7zip-manager embedded binaries (built locally, not for version control)
 manager/embed/
 
+# desktop installer build artifacts (node/enc7zip/openlist downloaded at build time)
+desktop/dist/
+desktop/node/
+desktop/node-extract/
+desktop/staging/
+desktop/openlist/
+desktop/openlist.zip
+desktop/node.zip
+
