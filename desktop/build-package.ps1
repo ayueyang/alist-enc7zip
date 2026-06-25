@@ -47,7 +47,7 @@ if (-not (Test-Path $nodeExe)) {
 $toolDir = Join-Path $ScriptDir '7z-tool'
 if (-not (Test-Path $toolDir)) { New-Item -ItemType Directory -Path $toolDir | Out-Null }
 $sevenZr = Join-Path $toolDir '7zr.exe'
-$sfxModule = Join-Path $toolDir '7zSD.sfx'
+$sfxModule = Join-Path $toolDir '7zS.sfx'
 
 if (-not (Test-Path $sevenZr)) {
     Write-Host "`n>>> 下载 7zr.exe..." -ForegroundColor Cyan
@@ -56,13 +56,13 @@ if (-not (Test-Path $sevenZr)) {
 }
 
 if (-not (Test-Path $sfxModule)) {
-    Write-Host ">>> 下载 7z SFX 模块（9.20 extra，含 SFXs for installers）..." -ForegroundColor Cyan
+    Write-Host ">>> 下载 7z SFX 模块（9.20 extra，含 7zS.sfx 自解压模块）..." -ForegroundColor Cyan
     $extraZip = Join-Path $toolDir '7z920-extra.7z'
     Invoke-WebRequest 'https://www.7-zip.org/a/7z920_extra.7z' -OutFile $extraZip -UseBasicParsing
     & $sevenZr x $extraZip "-o$toolDir" -y | Out-Null
     Remove-Item $extraZip -Force
-    if (-not (Test-Path $sfxModule)) { throw '未找到 7zSD.sfx 模块' }
-    Write-Host '[OK] 7zSD.sfx 就绪' -ForegroundColor Green
+    if (-not (Test-Path $sfxModule)) { throw '未找到 7zS.sfx 模块' }
+    Write-Host '[OK] 7zS.sfx 就绪' -ForegroundColor Green
 }
 
 # 4. 准备打包目录（顶层文件夹 alist-enc7zip/）
@@ -79,6 +79,7 @@ Write-Host "    拷贝项目源码（排除 .git/node_modules/cache/logs 等）.
 $excludeDirs = @(
     '.git', 'node_modules', 'cache', 'logs', 'build', 'conf',
     'desktop', 'manager', 'docker-conf', 'test-videos',
+    'releases',
     '.trae', '.vscode', '.idea', 'ts-out-dir'
 )
 $excludeFiles = @(
@@ -106,17 +107,16 @@ New-Item -ItemType Directory -Path (Join-Path $projectDir 'node') -Force | Out-N
 Copy-Item $nodeExe (Join-Path $projectDir 'node\node.exe') -Force
 Write-Host '[OK] 文件就绪' -ForegroundColor Green
 
-# 5. 生成 SFX 配置 config.txt（UTF-8 no BOM，支持中文 RunProgram）
-# RunProgram 用相对路径 alist-enc7zip\安装.bat 指向解压后的项目根目录
+# 5. 生成 SFX 配置 config.txt（UTF-8 no BOM）
+# 7zS.sfx 纯自解压：让用户选路径解压，解压后用户手动运行 安装.bat
 $configTxt = Join-Path $ScriptDir 'config.txt'
 $configContent = @"
 ;!@Install@!UTF-8!
-Title="alist-enc7zip Desktop"
-BeginPrompt="Extract and install alist-enc7zip?"
+Title="alist-enc7zip"
+BeginPrompt="Choose a folder to extract alist-enc7zip. Then run 安装.bat inside."
 ExtractDialogText="Extracting, please wait..."
 ExtractTitle="alist-enc7zip"
 ExtractPath="yes"
-RunProgram="alist-enc7zip\安装.bat"
 ;!@InstallEnd@!
 "@
 [System.IO.File]::WriteAllText($configTxt, $configContent, [System.Text.UTF8Encoding]::new($false))

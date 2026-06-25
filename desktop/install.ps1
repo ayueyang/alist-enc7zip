@@ -48,7 +48,7 @@ function 打开网页($port) {
 }
 
 function 创建快捷方式($port) {
-    # 代理入口
+    # 代理入口（网页）
     $proxyUrl = Join-Path $Desktop 'alist-enc7zip 代理.url'
     @"
 [InternetShortcut]
@@ -56,7 +56,7 @@ URL=http://127.0.0.1:$port
 IconIndex=0
 "@ | Out-File $proxyUrl -Encoding default -Force
 
-    # 管理面板
+    # 管理面板（网页）
     $adminUrl = Join-Path $Desktop 'alist-enc7zip 管理.url'
     @"
 [InternetShortcut]
@@ -64,9 +64,25 @@ URL=http://127.0.0.1:$port/public/index.html
 IconIndex=0
 "@ | Out-File $adminUrl -Encoding default -Force
 
+    # 启动服务 / 停止服务（程序快捷方式 .lnk）
+    $shell = New-Object -ComObject WScript.Shell
+    $startLnk = $shell.CreateShortcut((Join-Path $Desktop 'alist-enc7zip 启动.lnk'))
+    $startLnk.TargetPath = Join-Path $ScriptDir 'start.bat'
+    $startLnk.WorkingDirectory = $ScriptDir
+    $startLnk.IconLocation = 'shell32.dll,44'
+    $startLnk.Save()
+
+    $stopLnk = $shell.CreateShortcut((Join-Path $Desktop 'alist-enc7zip 停止.lnk'))
+    $stopLnk.TargetPath = Join-Path $ScriptDir 'stop.bat'
+    $stopLnk.WorkingDirectory = $ScriptDir
+    $stopLnk.IconLocation = 'shell32.dll,27'
+    $stopLnk.Save()
+
     写好 "桌面快捷方式已创建:"
     Write-Host "    - alist-enc7zip 代理 (http://127.0.0.1:$port)" -ForegroundColor White
     Write-Host "    - alist-enc7zip 管理 (http://127.0.0.1:$port/public/index.html)" -ForegroundColor White
+    Write-Host "    - alist-enc7zip 启动 (双击启动服务)" -ForegroundColor White
+    Write-Host "    - alist-enc7zip 停止 (双击停止服务)" -ForegroundColor White
 }
 
 function 下载文件($url, $dest) {
@@ -267,9 +283,11 @@ Write-Host '==========================================' -ForegroundColor Green
 Write-Host '  安装完成！' -ForegroundColor Green
 Write-Host '==========================================' -ForegroundColor Green
 Write-Host ''
-Write-Host '  桌面已创建两个快捷方式:' -ForegroundColor White
+Write-Host '  桌面已创建 4 个快捷方式:' -ForegroundColor White
 Write-Host '    - alist-enc7zip 代理  (访问加密后的 alist)' -ForegroundColor White
 Write-Host '    - alist-enc7zip 管理  (配置加密，账号 admin / admin123)' -ForegroundColor White
+Write-Host '    - alist-enc7zip 启动  (双击启动服务)' -ForegroundColor White
+Write-Host '    - alist-enc7zip 停止  (双击停止服务)' -ForegroundColor White
 Write-Host ''
 Write-Host "  代理地址: http://127.0.0.1:$enc7zipPort" -ForegroundColor White
 Write-Host "  管理面板: http://127.0.0.1:$enc7zipPort/public/index.html" -ForegroundColor White
@@ -277,7 +295,6 @@ if (检测alist $alistPort) {
     Write-Host "  alist/openlist: http://127.0.0.1:$alistPort" -ForegroundColor White
 }
 Write-Host ''
-Write-Host '  日常使用: 双击桌面快捷方式即可打开' -ForegroundColor White
-Write-Host '  停止服务: 双击 stop.bat' -ForegroundColor White
+Write-Host '  日常使用: 双击桌面快捷方式即可' -ForegroundColor White
 Write-Host ''
 Read-Host '按回车键退出'
