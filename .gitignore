@@ -61,3 +61,6 @@ test-videos/
 token.txt
 *.bin
 
+# enc7zip-manager embedded binaries (built locally, not for version control)
+manager/embed/
+
