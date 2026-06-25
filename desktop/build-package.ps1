@@ -56,9 +56,9 @@ if (-not (Test-Path $sevenZr)) {
 }
 
 if (-not (Test-Path $sfxModule)) {
-    Write-Host ">>> 下载 7z SFX 模块..." -ForegroundColor Cyan
-    $extraZip = Join-Path $toolDir '7z-extra.7z'
-    Invoke-WebRequest 'https://www.7-zip.org/a/7z2405-extra.7z' -OutFile $extraZip -UseBasicParsing
+    Write-Host ">>> 下载 7z SFX 模块（9.20 extra，含 SFXs for installers）..." -ForegroundColor Cyan
+    $extraZip = Join-Path $toolDir '7z920-extra.7z'
+    Invoke-WebRequest 'https://www.7-zip.org/a/7z920_extra.7z' -OutFile $extraZip -UseBasicParsing
     & $sevenZr x $extraZip "-o$toolDir" -y | Out-Null
     Remove-Item $extraZip -Force
     if (-not (Test-Path $sfxModule)) { throw '未找到 7zSD.sfx 模块' }

@@ -76,3 +76,6 @@ desktop/7z-tool/
 desktop/archive.7z
 desktop/config.txt
 
+# releases output (generated exe, not for version control)
+releases/
+
