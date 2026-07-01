@@ -60,4 +60,5 @@ docker-conf/
 test-videos/
 token.txt
 *.bin
+releases/
 

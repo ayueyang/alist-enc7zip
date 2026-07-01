@@ -1,12 +1,12 @@
 const DEFAULT_PREVIEW_STATE = {
-  enabled: true,
+  enabled: false,
   quality: 'high',
   duration: 6,
 }
 
 function normalizePreviewState(state = {}) {
   return {
-    enabled: state.enabled !== false,
+    enabled: state.enabled === true,
     quality: ['low', 'medium', 'high'].includes(state.quality) ? state.quality : DEFAULT_PREVIEW_STATE.quality,
     duration: [3, 6, 9, '3', '6', '9'].includes(state.duration) ? Number(state.duration) : DEFAULT_PREVIEW_STATE.duration,
   }
@@ -173,7 +173,7 @@ function buildMenuMarkup(version) {
           var quality = ['low', 'medium', 'high'].includes(next.quality) ? next.quality : sevenZipAesCbcPreviewDefaultState.quality
           var duration = [3, 6, 9, '3', '6', '9'].includes(next.duration) ? Number(next.duration) : sevenZipAesCbcPreviewDefaultState.duration
           return {
-            enabled: next.enabled !== false,
+            enabled: next.enabled === true,
             quality: quality,
             duration: duration,
           }
@@ -464,6 +464,17 @@ function buildMenuMarkup(version) {
 
             var img = anchor.querySelector('img[data-7z-aes-cbc-preview="thumb"]')
             if (img) {
+              if (!img.getAttribute('data-7z-aes-cbc-preview-error-bound')) {
+                img.setAttribute('data-7z-aes-cbc-preview-error-bound', 'true')
+                var fallbackIcon = anchor.querySelector('[data-7z-aes-cbc-preview-icon="true"]')
+                img.addEventListener('error', function () {
+                  img.style.display = 'none'
+                  if (fallbackIcon) {
+                    fallbackIcon.style.display = ''
+                    fallbackIcon.removeAttribute('data-7z-aes-cbc-preview-icon')
+                  }
+                })
+              }
               if (img.getAttribute('src') !== thumb) img.setAttribute('src', thumb)
               img.style.display = ''
               var pairedIcon = anchor.querySelector('[data-7z-aes-cbc-preview-icon="true"]')

@@ -26,6 +26,8 @@ import './permission'
 
 //import element-plus
 import 'element-plus/dist/index.css'
+//element-plus dark 主题变量，html.dark 时组件自动适配深色
+import 'element-plus/theme-chalk/dark/css-vars.css'
 const app = createApp(App)
 
 //router

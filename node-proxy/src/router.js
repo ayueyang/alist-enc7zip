@@ -227,7 +227,7 @@ function collectSevenZipAesCbcPreviewConfigs() {
         describe: passwdInfo.describe || '',
         encPath: passwdInfo.encPath,
         preview: {
-          enabled: passwdInfo.sevenZipAesCbcPreview !== false,
+          enabled: passwdInfo.sevenZipAesCbcPreview === true,
           quality: normalizeSevenZipAesCbcPreviewQuality(passwdInfo.sevenZipAesCbcPreviewQuality),
           duration: normalizeSevenZipAesCbcPreviewDurationSeconds(passwdInfo.sevenZipAesCbcPreviewDurationSeconds),
         },
@@ -244,7 +244,7 @@ function collectSevenZipAesCbcPreviewConfigs() {
             describe: passwdInfo.describe || '',
             encPath: passwdInfo.encPath,
             preview: {
-              enabled: passwdInfo.sevenZipAesCbcPreview !== false,
+              enabled: passwdInfo.sevenZipAesCbcPreview === true,
               quality: normalizeSevenZipAesCbcPreviewQuality(passwdInfo.sevenZipAesCbcPreviewQuality),
               duration: normalizeSevenZipAesCbcPreviewDurationSeconds(passwdInfo.sevenZipAesCbcPreviewDurationSeconds),
             },
@@ -261,7 +261,7 @@ function applySevenZipAesCbcPreviewConfig(index, preview) {
   if (index < 0 || index >= configs.length) return false
   const target = configs[index]
   const nextPreview = {
-    enabled: preview.enabled !== false,
+    enabled: preview.enabled === true,
     quality: normalizeSevenZipAesCbcPreviewQuality(preview.quality),
     duration: normalizeSevenZipAesCbcPreviewDurationSeconds(preview.duration),
   }

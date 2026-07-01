@@ -116,7 +116,7 @@ const alistServerTemp = {
       zipInfoCacheDays: 30, // archive info cache TTL, days
       zipAutoCache: false, // auto probe external WinZip AES ZIP in background
       sevenZipAesCbcAutoCache: false, // auto probe external 7z AES-CBC in background
-      sevenZipAesCbcPreview: true, // show generated 7z AES-CBC GIF preview in AList file list
+      sevenZipAesCbcPreview: false, // show generated 7z AES-CBC GIF preview in AList file list
       sevenZipAesCbcPreviewQuality: 'high', // low, medium, high
       sevenZipAesCbcPreviewDurationSeconds: 6, // 3, 6, 9
       encSuffix: '', //
@@ -148,7 +148,7 @@ const webdavServerTemp = [
         zipInfoCacheDays: 30, // archive info cache TTL, days
         zipAutoCache: false, // auto probe external WinZip AES ZIP in background
         sevenZipAesCbcAutoCache: false, // auto probe external 7z AES-CBC in background
-        sevenZipAesCbcPreview: true, // show generated 7z AES-CBC GIF preview in AList file list
+        sevenZipAesCbcPreview: false, // show generated 7z AES-CBC GIF preview in AList file list
         sevenZipAesCbcPreviewQuality: 'high', // low, medium, high
         sevenZipAesCbcPreviewDurationSeconds: 6, // 3, 6, 9
         encNameSuffix: '', //
@@ -195,7 +195,7 @@ function initPasswdConfig(passwdInfo) {
     passwdInfo.sevenZipAesCbcAutoCache = false
   }
   if (passwdInfo.sevenZipAesCbcPreview === undefined) {
-    passwdInfo.sevenZipAesCbcPreview = true
+    passwdInfo.sevenZipAesCbcPreview = false
   }
   if (![3, 6, 9, '3', '6', '9'].includes(passwdInfo.sevenZipAesCbcPreviewDurationSeconds)) {
     passwdInfo.sevenZipAesCbcPreviewDurationSeconds = 6
