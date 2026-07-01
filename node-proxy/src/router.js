@@ -17,7 +17,7 @@ import {
   importProxyCacheConfig,
   saveProxyCacheConfig,
 } from './utils/proxyCacheManager'
-import { getSevenZipAesCbcPreviewRuntimeStats, normalizeSevenZipAesCbcPreviewQuality, normalizeSevenZipAesCbcPreviewDurationSeconds } from './utils/sevenZipAesCbcPreview'
+import { getSevenZipAesCbcPreviewRuntimeStats, isSevenZipAesCbcPreviewAvailable, normalizeSevenZipAesCbcPreviewQuality, normalizeSevenZipAesCbcPreviewDurationSeconds } from './utils/sevenZipAesCbcPreview'
 import { getSevenZipAesCbcProbeRuntimeStats } from './utils/sevenZipAesCbcCache'
 import { getWinZipAesZipProbeRuntimeStats } from './utils/winZipAesZipCache'
 import { isSevenZipAesCbcEncType } from './utils/sevenZipAesCbc'
@@ -181,6 +181,7 @@ function getProxyCacheRuntimeStats() {
 
 router.all('/proxy-cache/status', async (ctx) => {
   const data = await getProxyCacheStatus(getProxyCacheRuntimeStats())
+  data.ffmpegAvailable = isSevenZipAesCbcPreviewAvailable()
   ctx.body = { data }
 })
 

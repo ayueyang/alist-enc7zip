@@ -49,6 +49,17 @@
       </el-col>
     </el-row>
 
+    <!-- ffmpeg 检测提示 -->
+    <el-alert
+      v-if="status.ffmpegAvailable === false"
+      class="mb-16px"
+      type="warning"
+      :closable="false"
+      title="未检测到 ffmpeg，GIF 预览功能不可用"
+      description="GIF 缩略图生成依赖 ffmpeg + ffprobe。Docker 镜像已内置；源码部署请安装 ffmpeg（Windows 可执行 winget install ffmpeg，或设置 FFMPEG_PATH / FFPROBE_PATH 环境变量指向可执行文件），安装后重启 node-proxy 生效。"
+      show-icon
+    />
+
     <!-- 7z AES-CBC 预览简易配置 -->
     <el-card shadow="never" class="mb-16px">
       <template #header>
@@ -252,7 +263,8 @@ const status = reactive({
   preview: {},
   archiveInfo: {},
   negativeProbe: {},
-  redirect: {}
+  redirect: {},
+  ffmpegAvailable: null
 })
 const previewConfigs = ref([])
 
@@ -297,6 +309,7 @@ async function loadAll() {
   Object.assign(status.archiveInfo, res.data.archiveInfo || {})
   Object.assign(status.negativeProbe, res.data.negativeProbe || {})
   Object.assign(status.redirect, res.data.redirect || {})
+  status.ffmpegAvailable = res.data.ffmpegAvailable
   Object.assign(form, res.data.config || {})
   await load7zPreview()
 }

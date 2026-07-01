@@ -94,8 +94,12 @@ GIF 生成依赖 **ffmpeg + ffprobe**：
 - **Docker 部署**：镜像已内置，无需额外安装。
 - **源码部署**：请自行安装 ffmpeg（需同时包含 ffprobe），或将可执行文件路径通过环境变量指定：
 
+  - Windows：`winget install ffmpeg` 或 `choco install ffmpeg`（安装后需确保在系统 PATH 中）
+  - macOS：`brew install ffmpeg`
+  - Linux：`apt install ffmpeg` / `yum install ffmpeg` / `apk add ffmpeg`
+
 ```bash
-# 环境变量示例（Windows / Linux 通用）
+# 环境变量示例（Windows / Linux 通用，用于指定自定义路径）
 FFMPEG_PATH=/usr/local/bin/ffmpeg
 FFPROBE_PATH=/usr/local/bin/ffprobe
 ```
