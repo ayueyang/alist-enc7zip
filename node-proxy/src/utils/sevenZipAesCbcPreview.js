@@ -145,7 +145,7 @@ export function isSevenZipAesCbcPreviewCandidate(fileInfo, passwdInfo) {
   return !!(
     passwdInfo &&
     isSevenZipAesCbcEncType(passwdInfo.encType) &&
-    passwdInfo.sevenZipAesCbcPreview !== false &&
+    passwdInfo.sevenZipAesCbcPreview === true &&
     fileInfo &&
     !fileInfo.is_dir &&
     Number(fileInfo.type) === 2
@@ -210,6 +210,16 @@ function findBinary(name, envName) {
     .map((item) => item.trim())
     .find(Boolean)
   return first || null
+}
+
+let previewBinaryAvailable
+export function isSevenZipAesCbcPreviewAvailable() {
+  if (previewBinaryAvailable === undefined) {
+    const ffmpegPath = findBinary('ffmpeg', 'FFMPEG_PATH')
+    const ffprobePath = findBinary('ffprobe', 'FFPROBE_PATH')
+    previewBinaryAvailable = !!(ffmpegPath && ffprobePath)
+  }
+  return previewBinaryAvailable
 }
 
 function runProcess(command, args, options = {}) {
@@ -338,6 +348,9 @@ export function getSevenZipAesCbcPreviewPlaceholderGif() {
 export async function getSevenZipAesCbcPreviewGif(key, quality, options = {}) {
   if (!/^[a-f0-9]{32}$/.test(String(key || ''))) {
     return { body: PLACEHOLDER_GIF, placeholder: true, reason: 'invalid-preview-key' }
+  }
+  if (!isSevenZipAesCbcPreviewAvailable()) {
+    return { body: PLACEHOLDER_GIF, placeholder: true, reason: 'ffmpeg-not-available', unavailable: true }
   }
   const normalizedQuality = normalizeSevenZipAesCbcPreviewQuality(quality)
   const durationSeconds = normalizeSevenZipAesCbcPreviewDurationSeconds(options.durationSeconds)

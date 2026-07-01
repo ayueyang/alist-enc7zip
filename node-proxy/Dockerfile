@@ -6,7 +6,7 @@ ENV HTTP_PROXY=""
 ENV HTTPS_PROXY=""
 ENV no_proxy="*"
 
-RUN apk add --no-cache nodejs npm python3 make g++
+RUN apk add --no-cache nodejs npm python3 make g++ ffmpeg
 
 WORKDIR /app
 COPY package.json package-lock.json ./

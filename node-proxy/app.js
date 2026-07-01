@@ -66,6 +66,7 @@ import {
 import {
   getSevenZipAesCbcPreviewGif,
   getSevenZipAesCbcPreviewRuntimeStats,
+  isSevenZipAesCbcPreviewAvailable,
   normalizeSevenZipAesCbcPreviewDurationSeconds,
   normalizeSevenZipAesCbcPreviewQuality,
 } from '@/utils/sevenZipAesCbcPreview'
@@ -325,7 +326,7 @@ function getSevenZipAesCbcPreviewPasswdConfig(filePath) {
 function getSevenZipAesCbcPreviewConfigData(passwdInfo) {
   return {
     matched: !!passwdInfo,
-    enabled: passwdInfo ? passwdInfo.sevenZipAesCbcPreview !== false : true,
+    enabled: passwdInfo ? passwdInfo.sevenZipAesCbcPreview === true : false,
     quality: normalizeSevenZipAesCbcPreviewQuality(passwdInfo && passwdInfo.sevenZipAesCbcPreviewQuality),
     duration: normalizeSevenZipAesCbcPreviewDurationSeconds(
       passwdInfo && passwdInfo.sevenZipAesCbcPreviewDurationSeconds
@@ -782,6 +783,12 @@ proxyRouter.get('/7z-aes-cbc-preview/:key.gif', async (ctx) => {
   const durationSeconds = Number(ctx.query.duration)
   const baseUrl = `${ctx.req.origin || ctx.protocol + '://' + ctx.req.selfHost}`
   const result = await getSevenZipAesCbcPreviewGif(ctx.params.key, quality, { baseUrl, durationSeconds })
+  if (result.unavailable) {
+    ctx.status = 404
+    ctx.set('cache-control', 'no-store')
+    ctx.set('x-7z-aes-cbc-preview', safeHeaderValue(result.reason))
+    return
+  }
   ctx.status = 200
   ctx.set('content-type', 'image/gif')
   ctx.set('cache-control', result.placeholder ? 'no-store' : 'public, max-age=86400')
@@ -967,7 +974,7 @@ proxyRouter.all('/api/fs/7z-aes-cbc-preview-config', bodyparserMw, async (ctx) =
   const activeEncPath = configInfo.activePasswdInfo && configInfo.activePasswdInfo.encPath
   const nextPreview = {
     ...configInfo.passwdInfo,
-    sevenZipAesCbcPreview: body.sevenZipAesCbcPreview !== false,
+    sevenZipAesCbcPreview: body.sevenZipAesCbcPreview === true,
     sevenZipAesCbcPreviewQuality: normalizeSevenZipAesCbcPreviewQuality(body.sevenZipAesCbcPreviewQuality),
     sevenZipAesCbcPreviewDurationSeconds: normalizeSevenZipAesCbcPreviewDurationSeconds(
       body.sevenZipAesCbcPreviewDurationSeconds
@@ -1095,7 +1102,14 @@ server.on('checkContinue', (req, res) => {
   koaHandler(req, res)
 })
 
-server.listen(port, () => logger.info('服务启动成功: ' + port))
+server.listen(port, '0.0.0.0', () => {
+  logger.info('服务启动成功: ' + port)
+  if (!isSevenZipAesCbcPreviewAvailable()) {
+    logger.warn(
+      '7z AES-CBC GIF 预览不可用：未找到 ffmpeg/ffprobe。Docker 镜像已内置；源码部署请安装 ffmpeg，或设置 FFMPEG_PATH / FFPROBE_PATH 环境变量指向可执行文件'
+    )
+  }
+})
 setInterval(() => {
   logger.debug('server_connections', server._connections, Date.now())
 }, 600 * 1000)

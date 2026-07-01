@@ -82,3 +82,28 @@ npm run serve
 4. 访问 `http://127.0.0.1:5277` 即可使用 alist 服务，加密/解密自动完成
 
 加密路径支持通配符，例如 `movie_encrypt/*` 表示该目录下所有文件都加密。
+
+## 7z-AES-CBC GIF 预览
+
+对 7z-AES-CBC 加密包内的视频文件，列表页可生成 6 秒 GIF 缩略图预览。**默认关闭**，如需启用请在页面顶部菜单手动开启（可切换画质与时长）。
+
+### 依赖
+
+GIF 生成依赖 **ffmpeg + ffprobe**：
+
+- **Docker 部署**：镜像已内置，无需额外安装。
+- **源码部署**：请自行安装 ffmpeg（需同时包含 ffprobe），或将可执行文件路径通过环境变量指定：
+
+```bash
+# 环境变量示例（Windows / Linux 通用）
+FFMPEG_PATH=/usr/local/bin/ffmpeg
+FFPROBE_PATH=/usr/local/bin/ffprobe
+```
+
+若未检测到 ffmpeg，启动日志会输出 WARN，预览图请求返回 404，列表页自动回退显示原文件类型图标，不影响其他功能。安装 ffmpeg 后需重启 node-proxy 进程才能生效（检测结果在进程内缓存）。
+
+### 缓存
+
+- 生成的 GIF 缓存在 `cache/7z-aes-cbc-preview/` 目录，元数据存于 LevelDB。
+- 生成失败会在负缓存（默认 10 分钟）内跳过重复探测，避免频繁请求压垮后端。
+- 可在 WebUI「代理缓存」页查看运行状态与清理缓存。

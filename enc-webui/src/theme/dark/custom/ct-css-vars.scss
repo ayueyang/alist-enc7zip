@@ -1,60 +1,57 @@
 html.dark {
-  .el-card {
-    --el-card-bg-color:  #263445;
-  }
   /*element-plus section */
   --el-menu-active-color: #409eff;
-  --el-menu-text-color: #bfcbd9;
+  --el-menu-text-color: #cfd3dc;
   --el-menu-hover-text-color: var(--el-color-primary);
-  --el-menu-bg-color: #304156;
+  --el-menu-bg-color: #1d1e1f;
   --el-menu-hover-bg-color: #263445;
   --el-menu-item-height: 56px;
   --el-menu-border-color: none;
   /*layout section*/
   //layout
-  --layout-border-left-color: #ddd;
+  --layout-border-left-color: #303030;
   //Breadcrumb
   --breadcrumb-no-redirect: #97a8be;
   //Hamburger
-  --hamburger-color: #fff;
+  --hamburger-color: #cfd3dc;
   --hamburger-width: 20px;
   --hamburger-height: 20px;
-  --el-text-color-primary: #fff;
+  --el-text-color-primary: #e5eaf3;
   //Sidebar
   --sidebar-el-icon-size: 20px;
-  --sidebar-logo-background: #2b2f3a;
+  --sidebar-logo-background: #1d1e1f;
   --sidebar-logo-color: #ff9901;
   --sidebar-logo-width: 32px;
   --sidebar-logo-height: 32px;
   --sidebar-logo-title-color: #fff;
   --side-bar-width: 210px;
-  --side-bar-border-right-color: #2b2f3a;
+  --side-bar-border-right-color: #303030;
   //TagsView
-  --tags-view-background: #304156;
-  --tags-view-border-bottom: #2b2f3a;
+  --tags-view-background: #1d1e1f;
+  --tags-view-border-bottom: #303030;
   --tags-view-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12), 0 0 3px 0 rgba(0, 0, 0, 0.04);
-  --tags-view-item-background: #fff;
-  --tags-view-item-border-color: #d8dce5;
-  --tags-view-item-color: #495060;
+  --tags-view-item-background: #263445;
+  --tags-view-item-border-color: #3a4658;
+  --tags-view-item-color: #cfd3dc;
   --tag-view-height: 32px;
   --tags-view-item-active-background: #42b983;
   --tags-view-item-active-color: #fff;
   --tags-view-item-active-border-color: #42b983;
-  --tags-view-contextmenu-background: #fff;
-  --tags-view-contextmenu-color: #333;
-  --tags-view-contextmenu-box-shadow: 2px 2px 3px 0 rgba(0, 0, 0, 0.3);
-  --tags-view-contextmenu-hover-background: #eee;
+  --tags-view-contextmenu-background: #1d1e1f;
+  --tags-view-contextmenu-color: #cfd3dc;
+  --tags-view-contextmenu-box-shadow: 2px 2px 12px 0 rgba(0, 0, 0, 0.5);
+  --tags-view-contextmenu-hover-background: #263445;
   //close-icon
   --tags-view-close-icon-hover-background: #b4bccc;
   --tags-view-close-icon-hover-color: #fff;
   //AppMain.vue
-  --app-main-padding: 10px;
-  --app-main-background: #304156;
+  --app-main-padding: 16px;
+  --app-main-background: var(--el-bg-color, #141414);
   //Navbar.vue
   --nav-bar-height: 50px;
-  --nav-bar-background: #2b2f3a;
-  --nav-bar-box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
-  --nav-bar-right-menu-background: #2b2f3a;
+  --nav-bar-background: #1d1e1f;
+  --nav-bar-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --nav-bar-right-menu-background: #1d1e1f;
 
   //transition 动画
   //侧边栏切换动画时长
@@ -69,4 +66,12 @@ html.dark {
   //进度条颜色
   --pregress-bar-color: #409eff;
 
+  //页面内常见文字色（覆盖内联 gray 在深色背景上的低对比度问题）
+  --enc-tip-color: var(--el-text-color-secondary, #a8abb2);
+  --enc-config-title-color: var(--el-text-color-primary, #e5eaf3);
+
+  //el-card 背景跟随 EP dark
+  .el-card {
+    --el-card-bg-color: #1d1e1f;
+  }
 }

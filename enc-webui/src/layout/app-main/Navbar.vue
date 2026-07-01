@@ -1,17 +1,15 @@
 <template>
   <div class="navbar rowBC reset-el-dropdown">
     <div class="rowSC">
-      <!--  返回主页 logo  -->
-      <a class="home-logo-link" href="/" target="_blank" title="返回主页">
-        <img class="home-logo" src="/public/logo.png" alt="主页" />
-      </a>
       <!--  切换sidebar按钮  -->
       <hamburger v-if="settings.showHamburger" :is-active="sidebar.opened" class="hamburger-container" @toggleClick="toggleSideBar" />
       <!--  面包屑导航  -->
       <breadcrumb class="breadcrumb-container" />
     </div>
-    <!--导航标题-->
-    <div v-if="settings.showNavbarTitle" class="heardCenterTitle">{{ settings.title }}</div>
+    <!--中间 logo，点击回代理页-->
+    <a class="navbar-center-logo" href="/" title="返回代理页">
+      <img class="center-logo" src="/public/logo.png" alt="代理页" />
+    </a>
     <!-- 主题切换 + 下拉操作菜单 -->
     <div v-if="settings.ShowDropDown" class="right-menu rowSC">
       <el-tooltip :content="isDark ? '切换浅色模式' : '切换暗色模式'" placement="bottom">
@@ -27,7 +25,6 @@
             <div style="font-size: 12px;"> v.{{ userInfo.version }}</div>
           </div>
           <!-- <div>  {{ userInfo.version }}  </div> -->
-          <img src="https://github.jzfai.top/file/images/nav-right-logo.gif" class="user-avatar" />
           <CaretBottom style="width: 1em; height: 1em; margin-left: 4px" />
         </div>
         <template #dropdown>
@@ -35,8 +32,11 @@
             <router-link to="/">
               <el-dropdown-item>{{ langTitle('Home') }}</el-dropdown-item>
             </router-link>
-            <a target="_blank" href="https://github.com/jzfai/vue3-admin-template">
+            <a target="_blank" href="https://github.com/ayueyang/alist-enc7zip">
               <el-dropdown-item>{{ langTitle('Github') }}</el-dropdown-item>
+            </a>
+            <a target="_blank" href="https://github.com/ayueyang/alist-encrypt">
+              <el-dropdown-item>原版 Github</el-dropdown-item>
             </a>
             <!--<el-dropdown-item>修改密码</el-dropdown-item>-->
             <el-dropdown-item divided @click="loginOut">{{ langTitle('login out') }}</el-dropdown-item>
@@ -101,14 +101,13 @@ const loginOut = () => {
   z-index: 1;
 }
 
-.home-logo-link {
+.navbar-center-logo {
   display: flex;
   align-items: center;
-  margin-right: 8px;
   text-decoration: none;
 }
 
-.home-logo {
+.center-logo {
   width: 32px;
   height: 32px;
   border-radius: 6px;
@@ -117,22 +116,15 @@ const loginOut = () => {
   transition: opacity 0.2s;
 
   &:hover {
-    opacity: 0.8;
+    opacity: 0.85;
   }
 }
 
-//logo
+//用户名 + 下拉箭号
 .avatar-wrapper {
   margin-top: 5px;
   position: relative;
   cursor: pointer;
-
-  .user-avatar {
-    cursor: pointer;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-  }
 
   .el-icon-caret-bottom {
     cursor: pointer;
