@@ -235,7 +235,7 @@ function buildMenuMarkup(version) {
             })
             .then(function (result) {
               if (!result || result.code !== 200 || !result.data || !result.data.preview) {
-                setSevenZipAesCbcPreviewStatus('未匹配 7z AES-CBC 配置', 'warn')
+                setSevenZipAesCbcPreviewStatus('未匹配 7z AES-CBC（AES-256）配置', 'warn')
                 return
               }
               saveSevenZipAesCbcPreviewState(mapSevenZipAesCbcPreviewServerState(result.data.preview))
