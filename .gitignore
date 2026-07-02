@@ -62,3 +62,8 @@ token.txt
 *.bin
 releases/
 
+# planning-with-files runtime state (disk working memory, not for version control)
+/task_plan.md
+/findings.md
+/progress.md
+
