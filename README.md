@@ -75,6 +75,33 @@ services:
       ALIST_HOST: 127.0.0.1:5244
 ```
 
+### 桌面可执行文件（不推荐）
+
+从 [GitHub Release](https://github.com/ayueyang/alist-enc7zip/releases) 下载对应平台的独立可执行文件，**无需安装 Node.js**，解压即用。
+
+| 平台 | 文件 | 架构 |
+|---|---|---|
+| Windows x64 | `alist-encrypt-win.exe.zip` | Intel/AMD 64 位 |
+| Linux x64 | `alist-encrypt-linux.zip` | Intel/AMD 64 位 |
+| macOS x64 | `alist-encrypt-macos.zip` | Intel 64 位（Apple Silicon 需 Rosetta） |
+
+解压后直接运行：
+
+```bash
+# Windows
+alist-encrypt-win.exe
+# Linux / macOS
+chmod +x alist-encrypt-linux && ./alist-encrypt-linux
+```
+
+**不推荐原因**：
+
+1. **不含 ffmpeg**：桌面可执行文件不内置 ffmpeg，7z-AES-CBC GIF 预览功能不可用，需自行安装并配置 `FFMPEG_PATH` / `FFPROBE_PATH` 环境变量。
+2. **更新麻烦**：每次升级需重新下载整个压缩包替换。
+3. **平台覆盖有限**：仅 3 个 x64 桌面平台，无 ARM、无移动端。
+
+**推荐使用 Docker 部署**：镜像内置 ffmpeg，多架构支持（amd64 + arm64），更新只需 `docker pull` 拉取最新镜像。
+
 ### 源码运行
 
 需要 Node.js 18+：
