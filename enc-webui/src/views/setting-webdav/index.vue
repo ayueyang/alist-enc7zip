@@ -86,9 +86,9 @@
                 class="ml-2"
                 style="margin-right: 10px; --el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
               />
-              <span class="form-tip" style="margin-left: 6px">自己上传的 7z AES-CBC 包名会直接识别，普通 .7z 才后台探测</span>
+              <span class="form-tip" style="margin-left: 6px">自己上传的 7z AES-CBC（AES-256-CBC）包名会直接识别，普通 .7z 才后台探测</span>
             </el-form-item>
-            <el-form-item v-if="item.encType === '7z-aes-cbc'" label="7z AES-CBC预览">
+            <el-form-item v-if="item.encType === '7z-aes-cbc'" label="7z AES-CBC（AES-256）预览">
               <span class="inline-label">列表GIF</span>
               <el-switch
                 v-model="item.sevenZipAesCbcPreview"

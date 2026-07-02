@@ -37,7 +37,7 @@
         <el-card shadow="never">
           <div class="stat-title">解析缓存</div>
           <div class="stat-main">{{ archiveInfoTotal }}</div>
-          <div class="stat-sub">ZIP + 7z AES-CBC</div>
+          <div class="stat-sub">ZIP + 7z AES-CBC（256）</div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :lg="6">
@@ -64,10 +64,10 @@
     <el-card shadow="never" class="mb-16px">
       <template #header>
         <div class="section-head">
-          <span>7z AES-CBC 预览简易配置</span>
+          <span>7z AES-CBC（AES-256）预览简易配置</span>
         </div>
       </template>
-      <div v-if="previewConfigs.length === 0" class="preview-empty">未匹配 7z AES-CBC 配置</div>
+      <div v-if="previewConfigs.length === 0" class="preview-empty">未匹配 7z AES-CBC（AES-256）配置</div>
       <div v-else class="preview-config-list">
         <div v-for="(item, idx) in previewConfigs" :key="idx" class="preview-config-item">
           <div class="preview-config-head">
@@ -281,12 +281,12 @@ const cacheRows = computed(() => [
   {
     type: 'archiveInfo',
     name: '解析缓存',
-    detail: `ZIP ${status.archiveInfo.zipInfo || 0}，7z AES-CBC ${status.archiveInfo.sevenZipAesCbcInfo || 0}，轻量映射 ${status.archiveInfo.managedSevenZipAesCbc || 0}`
+    detail: `ZIP ${status.archiveInfo.zipInfo || 0}，7z AES-CBC（AES-256）${status.archiveInfo.sevenZipAesCbcInfo || 0}，轻量映射 ${status.archiveInfo.managedSevenZipAesCbc || 0}`
   },
   {
     type: 'negativeProbe',
     name: '探测负缓存',
-    detail: `7z AES-CBC ${status.negativeProbe.sevenZipAesCbc || 0}，WinZip AES ${status.negativeProbe.winZipAes || 0}`
+    detail: `7z AES-CBC（AES-256）${status.negativeProbe.sevenZipAesCbc || 0}，WinZip AES ${status.negativeProbe.winZipAes || 0}`
   },
   {
     type: 'redirect',
