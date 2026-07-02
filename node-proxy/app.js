@@ -33,7 +33,7 @@ import SevenZipAesCbc, {
   serializeSevenZipAesCbcInfo,
 } from '@/utils/sevenZipAesCbc'
 import levelDB from '@/utils/levelDB'
-import { webdavServer, alistServer, port, version, writeRuntimeConfig } from '@/config'
+import { webdavServer, alistServer, port, version, writeRuntimeConfig, proxyCache } from '@/config'
 import { convertRealName, getAListFileTypeByName, isRawZipName, pathExec, pathFindPasswd } from '@/utils/commonUtil'
 import globalHandle from '@/middleware/globalHandle'
 import encApiRouter from '@/router'
@@ -331,6 +331,7 @@ function getSevenZipAesCbcPreviewConfigData(passwdInfo) {
     duration: normalizeSevenZipAesCbcPreviewDurationSeconds(
       passwdInfo && passwdInfo.sevenZipAesCbcPreviewDurationSeconds
     ),
+    showToggle: proxyCache.showSevenZipAesCbcPreviewToggle === true,
   }
 }
 
