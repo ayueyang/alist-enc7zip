@@ -1,6 +1,6 @@
 services:
   alist-enc7zip:
-    build: ./node-proxy
+    build: .
     container_name: alist-enc7zip
     restart: unless-stopped
     ports:

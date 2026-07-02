@@ -1,0 +1,40 @@
+# 版本控制
+.git/
+.gitignore
+.github/
+
+# 构建产物（builder 阶段会重新生成）
+**/dist/
+**/node_modules/
+
+# 桌面安装包与桌面 node（体积大，容器不需要）
+desktop/
+manager/
+releases/
+
+# 前端 Web UI 源码（容器运行已打包的 node-proxy/dist/public）
+enc-webui/
+
+# 运行时数据与本地配置
+docker-conf/
+conf/
+test-videos/
+.trae/
+
+# 规划文件（运行时状态，不入镜像）
+task_plan.md
+findings.md
+progress.md
+PR_encFolderShift.md
+
+# 临时/日志
+*.log
+*.bin
+*.tmp
+*.cache
+token.txt
+
+# 环境变量文件（避免泄漏进 builder 层缓存）
+**/.env
+**/.env.*
+!**/.env.example
