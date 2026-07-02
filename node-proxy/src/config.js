@@ -20,6 +20,7 @@ export const defaultProxyCacheConfig = {
   cleanupOnStartup: true,
   enableGifDiskCache: true,
   enablePreviewAsync: true,
+  showSevenZipAesCbcPreviewToggle: false,
 }
 
 const proxyCacheNumberRules = {
@@ -39,7 +40,7 @@ const proxyCacheNumberRules = {
   cacheCleanupIntervalMinutes: { min: 1, max: 1440, integer: true },
 }
 
-const proxyCacheBooleanKeys = ['cleanupOnStartup', 'enableGifDiskCache', 'enablePreviewAsync']
+const proxyCacheBooleanKeys = ['cleanupOnStartup', 'enableGifDiskCache', 'enablePreviewAsync', 'showSevenZipAesCbcPreviewToggle']
 
 export function normalizeProxyCacheConfig(input = {}, options = {}) {
   const warnings = []

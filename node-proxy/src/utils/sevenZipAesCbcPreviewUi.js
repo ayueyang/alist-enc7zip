@@ -2,6 +2,7 @@ const DEFAULT_PREVIEW_STATE = {
   enabled: false,
   quality: 'high',
   duration: 6,
+  showToggle: false,
 }
 
 function normalizePreviewState(state = {}) {
@@ -9,6 +10,7 @@ function normalizePreviewState(state = {}) {
     enabled: state.enabled === true,
     quality: ['low', 'medium', 'high'].includes(state.quality) ? state.quality : DEFAULT_PREVIEW_STATE.quality,
     duration: [3, 6, 9, '3', '6', '9'].includes(state.duration) ? Number(state.duration) : DEFAULT_PREVIEW_STATE.duration,
+    showToggle: state.showToggle === true,
   }
 }
 
@@ -98,11 +100,23 @@ function buildMenuMarkup(version) {
         color: #334155;
         cursor: pointer;
         font-size: 12px;
+        transition: opacity 0.3s ease, width 0.3s ease, min-width 0.3s ease, padding 0.3s ease, margin 0.3s ease, border-width 0.3s ease;
+        overflow: hidden;
+        white-space: nowrap;
       }
       #sevenZipAesCbcTopMenuRoot .sevenZipAesCbcTopMenuToggle[data-active="true"] {
         background: #1677ff;
         border-color: #1677ff;
         color: #fff;
+      }
+      #sevenZipAesCbcTopMenuRoot .sevenZipAesCbcTopMenuToggle[data-show-toggle="false"] {
+        opacity: 0;
+        width: 0;
+        min-width: 0;
+        padding: 0;
+        margin: 0;
+        border-width: 0;
+        pointer-events: none;
       }
       /* 暗色模式 */
       html.dark #sevenZipAesCbcTopMenuRoot .sevenZipAesCbcTopMenuTrigger {
@@ -176,6 +190,7 @@ function buildMenuMarkup(version) {
             enabled: next.enabled === true,
             quality: quality,
             duration: duration,
+            showToggle: next.showToggle === true,
           }
         }
 
@@ -221,6 +236,7 @@ function buildMenuMarkup(version) {
             enabled: preview && preview.enabled,
             quality: preview && preview.quality,
             duration: preview && preview.duration,
+            showToggle: preview && preview.showToggle,
           })
         }
 
@@ -430,6 +446,7 @@ function buildMenuMarkup(version) {
           if (toggleButton) {
             toggleButton.textContent = sevenZipAesCbcPreviewState.enabled ? '关闭预览' : '开启预览'
             toggleButton.setAttribute('data-active', sevenZipAesCbcPreviewState.enabled ? 'true' : 'false')
+            toggleButton.setAttribute('data-show-toggle', sevenZipAesCbcPreviewState.showToggle ? 'true' : 'false')
           }
         }
 
@@ -533,6 +550,7 @@ function buildMenuMarkup(version) {
                 enabled: !sevenZipAesCbcPreviewState.enabled,
                 quality: sevenZipAesCbcPreviewState.quality,
                 duration: sevenZipAesCbcPreviewState.duration,
+                showToggle: sevenZipAesCbcPreviewState.showToggle,
               })
             })
           }

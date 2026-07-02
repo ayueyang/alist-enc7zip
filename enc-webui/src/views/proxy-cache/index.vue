@@ -220,6 +220,12 @@
               <el-switch v-model="form.enablePreviewAsync" />
             </el-form-item>
           </el-col>
+          <el-col :xs="24" :lg="8">
+            <el-form-item label="显示首页预览开关">
+              <el-switch v-model="form.showSevenZipAesCbcPreviewToggle" />
+              <span class="unit">控制列表页顶部"开启/关闭预览"按钮</span>
+            </el-form-item>
+          </el-col>
         </el-row>
       </el-form>
     </el-card>
