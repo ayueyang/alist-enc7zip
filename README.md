@@ -79,19 +79,19 @@ services:
 
 从 [GitHub Release](https://github.com/ayueyang/alist-enc7zip/releases) 下载对应平台的独立可执行文件，**无需安装 Node.js**，解压即用。
 
-| 平台 | 文件 | 架构 |
-|---|---|---|
-| Windows x64 | `alist-encrypt-win.exe.zip` | Intel/AMD 64 位 |
-| Linux x64 | `alist-encrypt-linux.zip` | Intel/AMD 64 位 |
-| macOS x64 | `alist-encrypt-macos.zip` | Intel 64 位（Apple Silicon 需 Rosetta） |
+| 平台          | 文件                          | 架构                                  |
+| ----------- | --------------------------- | ----------------------------------- |
+| Windows x64 | `alist-enc7zip-win.exe.zip` | Intel/AMD 64 位                      |
+| Linux x64   | `alist-enc7zip-linux.zip`   | Intel/AMD 64 位                      |
+| macOS x64   | `alist-enc7zip-macos.zip`   | Intel 64 位（Apple Silicon 需 Rosetta） |
 
 解压后直接运行：
 
 ```bash
 # Windows
-alist-encrypt-win.exe
+alist-enc7zip-win.exe
 # Linux / macOS
-chmod +x alist-encrypt-linux && ./alist-encrypt-linux
+chmod +x alist-enc7zip-linux && ./alist-enc7zip-linux
 ```
 
 **不推荐原因**：
@@ -131,7 +131,6 @@ GIF 生成依赖 **ffmpeg + ffprobe**：
 
 - **Docker 部署**：镜像已内置，无需额外安装。
 - **源码部署**：请自行安装 ffmpeg（需同时包含 ffprobe），或将可执行文件路径通过环境变量指定：
-
   - Windows：`winget install ffmpeg` 或 `choco install ffmpeg`（安装后需确保在系统 PATH 中）
   - macOS：`brew install ffmpeg`
   - Linux：`apt install ffmpeg` / `yum install ffmpeg` / `apk add ffmpeg`
@@ -149,3 +148,4 @@ FFPROBE_PATH=/usr/local/bin/ffprobe
 - 生成的 GIF 缓存在 `cache/7z-aes-cbc-preview/` 目录，元数据存于 LevelDB。
 - 生成失败会在负缓存（默认 10 分钟）内跳过重复探测，避免频繁请求压垮后端。
 - 可在 WebUI「代理缓存」页查看运行状态与清理缓存。
+
