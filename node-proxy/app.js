@@ -686,7 +686,6 @@ async function proxyHandle(ctx, next) {
       }
     } else if (isSevenZipAesCbcEncType(passwdInfo.encType)) {
       if (!request.isExternalSevenZipAesCbc && !request.isExternalSevenZipAesCbcCandidate) {
-        logger.info('@@7z AES-CBC passthrough:', filePath)
         return await httpProxy(request, response)
       }
       if (request.isExternalSevenZipAesCbcCandidate && !request.isExternalSevenZipAesCbc) {
@@ -704,7 +703,6 @@ async function proxyHandle(ctx, next) {
           passwdInfo
         )
         if (!externalFileInfo || !externalFileInfo.sevenZipAesCbcInfo) {
-          logger.info('@@ordinary 7z passthrough:', filePath)
           return await httpProxy(request, response)
         }
         fileInfo = externalFileInfo

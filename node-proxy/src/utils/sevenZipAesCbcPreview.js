@@ -264,7 +264,7 @@ async function probeDuration(ffprobePath, sourceUrl, timeoutMs) {
   try {
     const output = await runProcess(
       ffprobePath,
-      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nk=1:nw=1', sourceUrl],
+      ['-v', 'error', '-seekable', '1', '-show_entries', 'format=duration', '-of', 'default=nk=1:nw=1', sourceUrl],
       { timeoutMs }
     )
     const duration = Number(String(output || '').trim())
@@ -300,6 +300,8 @@ async function generatePreviewGif(meta, quality, durationSeconds, cachePath, opt
     '-loglevel',
     'error',
     '-y',
+    '-seekable',
+    '1',
     '-ss',
     String(getSevenZipAesCbcPreviewStartSecond(duration, durationSeconds)),
     '-t',
